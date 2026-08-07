@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "emergency-case-input.schema.json",
+  "title": "Emergency Procurement Case Input",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "case_id",
+    "title",
+    "workflow_type",
+    "jurisdiction",
+    "department",
+    "estimated_amount_usd",
+    "proposed_vendor",
+    "request_text",
+    "available_documents"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0"
+    },
+    "case_id": {
+      "type": "string",
+      "pattern": "^EM-[0-9]{3}$"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "workflow_type": {
+      "type": "string",
+      "const": "emergency_procurement"
+    },
+    "jurisdiction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "agency"
+      ],
+      "properties": {
+        "state": {
+          "type": "string"
+        },
+        "agency": {
+          "type": "string"
+        }
+      }
+    },
+    "department": {
+      "type": "string",
+      "minLength": 1
+    },
+    "estimated_amount_usd": {
+      "type": "number",
+      "minimum": 0
+    },
+    "proposed_vendor": {
+      "type": "string",
+      "minLength": 1
+    },
+    "request_text": {
+      "type": "string",
+      "minLength": 1
+    },
+    "available_documents": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "document_id",
+          "title",
+          "summary"
+        ],
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "schema_version": "1.0",
+  "dataset_name": "emergency_procurement_mock_cases_v1",
+  "description": "Five mock cases for testing the Procurement Exception Advisor emergency-procurement workflow.",
+  "usage_note": "Provide only input_file to the agent. Reserve expected_file as the evaluation answer key.",
+  "cases": [
+    {
+      "case_id": "EM-001",
+      "title": "Emergency Sewer Main Repair",
+      "input_file": "inputs/em-001.json",
+      "expected_file": "expected/em-001.expected.json",
+      "primary_capability_tested": "recognizing_a_well_supported_emergency"
+    },
+    {
+      "case_id": "EM-002",
+      "title": "Failed Traffic Signal With Incomplete Evidence",
+      "input_file": "inputs/em-002.json",
+      "expected_file": "expected/em-002.expected.json",
+      "primary_capability_tested": "asking_for_missing_facts_before_concluding"
+    },
+    {
+      "case_id": "EM-003",
+      "title": "Contract Expiration Caused by Poor Planning",
+      "input_file": "inputs/em-003.json",
+      "expected_file": "expected/em-003.expected.json",
+      "primary_capability_tested": "distinguishing_urgency_from_emergency"
+    },
+    {
+      "case_id": "EM-004",
+      "title": "Valid Emergency With Excessive Scope",
+      "input_file": "inputs/em-004.json",
+      "expected_file": "expected/em-004.expected.json",
+      "primary_capability_tested": "limiting_procurement_to_necessary_emergency_scope"
+    },
+    {
+      "case_id": "EM-005",
+      "title": "Critical Chemical Shortage With Conflicting Evidence",
+      "input_file": "inputs/em-005.json",
+      "expected_file": "expected/em-005.expected.json",
+      "primary_capability_tested": "handling_conflicting_evidence_and_mixed_causation"
+    }
+  ]
+}

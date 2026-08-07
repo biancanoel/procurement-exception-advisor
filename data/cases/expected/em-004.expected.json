@@ -1,0 +1,109 @@
+{
+  "schema_version": "1.0",
+  "case_id": "EM-004",
+  "expected_classification": "Emergency public project with excessive proposed scope",
+  "expected_recommendation": {
+    "code": "additional_evidence_required",
+    "summary": "Emergency stabilization is justified, but the full proposed project is not. Immediate work should be limited to weatherproofing and necessary repairs while elective upgrades are separately assessed and competitively procured."
+  },
+  "criteria_assessment": [
+    {
+      "criterion_id": "unexpected_event",
+      "criterion": "Unexpected event",
+      "status": "supported",
+      "rationale": "The windstorm caused new damage and active leakage.",
+      "evidence_document_ids": [
+        "EM004-D01",
+        "EM004-D03"
+      ]
+    },
+    {
+      "criterion_id": "immediate_threat",
+      "criterion": "Immediate threat",
+      "status": "supported",
+      "rationale": "Active water intrusion and imminent additional rain create risk of further property damage.",
+      "evidence_document_ids": [
+        "EM004-D01",
+        "EM004-D02",
+        "EM004-D03"
+      ]
+    },
+    {
+      "criterion_id": "competition_impracticable",
+      "criterion": "Competition impracticable",
+      "status": "supported",
+      "rationale": "Immediate stabilization before forecast rain may not allow a normal competitive process.",
+      "evidence_document_ids": [
+        "EM004-D02",
+        "EM004-D03"
+      ]
+    },
+    {
+      "criterion_id": "necessary_response",
+      "criterion": "Proposed response necessary",
+      "status": "partially_supported",
+      "rationale": "Weatherproofing and necessary repairs are supported, but no assessment establishes that total roof replacement and all upgrades are immediately necessary.",
+      "evidence_document_ids": [
+        "EM004-D03",
+        "EM004-D04"
+      ]
+    },
+    {
+      "criterion_id": "limited_scope",
+      "criterion": "Scope limited to emergency",
+      "status": "contradicted",
+      "rationale": "Skylights, upgraded insulation, undamaged gutters, and painting are not shown to be necessary to address the immediate emergency.",
+      "evidence_document_ids": [
+        "EM004-D04"
+      ]
+    },
+    {
+      "criterion_id": "vendor_selection",
+      "criterion": "Vendor selection documented",
+      "status": "partially_supported",
+      "rationale": "A vendor proposal is available, but availability, qualification, and consideration of other firms are not documented.",
+      "evidence_document_ids": [
+        "EM004-D04"
+      ]
+    },
+    {
+      "criterion_id": "price_reasonableness",
+      "criterion": "Price reasonableness",
+      "status": "not_supported",
+      "rationale": "The proposal is not itemized between emergency stabilization and elective capital improvements, and no comparison is provided.",
+      "evidence_document_ids": [
+        "EM004-D04"
+      ]
+    },
+    {
+      "criterion_id": "required_approvals",
+      "criterion": "Required approvals",
+      "status": "human_review_required",
+      "rationale": "The high-value public project requires confirmation of emergency authority and governing-body procedures.",
+      "evidence_document_ids": []
+    }
+  ],
+  "expected_follow_up_questions": [
+    "What temporary stabilization can be completed before the forecast rain?",
+    "Has an engineer or roofing consultant determined whether complete roof replacement is necessary?",
+    "Can the vendor provide itemized pricing for stabilization, permanent repair, and elective improvements?",
+    "Which components were already planned before the storm?",
+    "Were other qualified emergency roofing contractors contacted?"
+  ],
+  "expected_next_steps": [
+    "Authorize only immediate weatherproofing and damage stabilization that cannot wait.",
+    "Obtain a professional assessment of the permanent repair or replacement required.",
+    "Separate emergency work from skylights, upgrades, painting, undamaged gutter replacement, and other elective work.",
+    "Competitively procure nonemergency work and obtain itemized pricing."
+  ],
+  "critical_agent_behaviors": [
+    "Separate the valid emergency from the overly broad proposed solution.",
+    "Permit necessary stabilization rather than rejecting all work.",
+    "Flag planned or elective improvements for normal competition."
+  ],
+  "failure_modes_to_avoid": [
+    "Approving the entire proposal because part of the work is urgent.",
+    "Rejecting immediate stabilization because the proposal contains excessive scope.",
+    "Treating previously planned roof work as storm-created emergency work."
+  ]
+}

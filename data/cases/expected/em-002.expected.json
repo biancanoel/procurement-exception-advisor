@@ -1,0 +1,103 @@
+{
+  "schema_version": "1.0",
+  "case_id": "EM-002",
+  "expected_classification": "Potential emergency public project or repair",
+  "expected_recommendation": {
+    "code": "additional_evidence_required",
+    "summary": "An emergency may exist, but the current record does not establish that immediate noncompetitive replacement is necessary or that limited competition is impracticable."
+  },
+  "criteria_assessment": [
+    {
+      "criterion_id": "unexpected_event",
+      "criterion": "Unexpected event",
+      "status": "supported",
+      "rationale": "The signal cabinet failure appears unplanned and is recorded in the maintenance log.",
+      "evidence_document_ids": [
+        "EM002-D04"
+      ]
+    },
+    {
+      "criterion_id": "immediate_threat",
+      "criterion": "Immediate threat",
+      "status": "partially_supported",
+      "rationale": "A failed traffic signal presents a potential safety concern, but temporary stop signs are in place and no traffic-engineering assessment describes remaining risk.",
+      "evidence_document_ids": [
+        "EM002-D03"
+      ]
+    },
+    {
+      "criterion_id": "competition_impracticable",
+      "criterion": "Competition impracticable",
+      "status": "not_supported",
+      "rationale": "There is no evidence that other qualified contractors were contacted or that an abbreviated quote process would create unacceptable delay.",
+      "evidence_document_ids": []
+    },
+    {
+      "criterion_id": "necessary_response",
+      "criterion": "Proposed response necessary",
+      "status": "partially_supported",
+      "rationale": "Repair is necessary, but the record does not establish that complete cabinet replacement is the minimum required response.",
+      "evidence_document_ids": [
+        "EM002-D02",
+        "EM002-D04"
+      ]
+    },
+    {
+      "criterion_id": "limited_scope",
+      "criterion": "Scope limited to emergency",
+      "status": "not_supported",
+      "rationale": "The quote is not supported by an assessment explaining why replacement rather than repair is required.",
+      "evidence_document_ids": [
+        "EM002-D02"
+      ]
+    },
+    {
+      "criterion_id": "vendor_selection",
+      "criterion": "Vendor selection documented",
+      "status": "partially_supported",
+      "rationale": "The vendor maintains other City signals, but the record does not show exclusivity, proprietary access, or comparison with other qualified firms.",
+      "evidence_document_ids": [
+        "EM002-D01"
+      ]
+    },
+    {
+      "criterion_id": "price_reasonableness",
+      "criterion": "Price reasonableness",
+      "status": "not_supported",
+      "rationale": "No comparison quote, historical price, estimate, or unit-price analysis is included.",
+      "evidence_document_ids": [
+        "EM002-D02"
+      ]
+    },
+    {
+      "criterion_id": "required_approvals",
+      "criterion": "Required approvals",
+      "status": "human_review_required",
+      "rationale": "The controlling approval authority and public-project procedure must be verified.",
+      "evidence_document_ids": []
+    }
+  ],
+  "expected_follow_up_questions": [
+    "Do the temporary stop signs adequately control the immediate safety risk?",
+    "What would happen if the City used an abbreviated competitive quote process?",
+    "Were other qualified signal contractors contacted?",
+    "Why must the entire cabinet be replaced rather than repaired?",
+    "Is the proposed price consistent with prior signal-controller or cabinet replacements?",
+    "Does SignalTech possess proprietary access, software, or equipment necessary for the repair?"
+  ],
+  "expected_next_steps": [
+    "Obtain a traffic-engineering or maintenance assessment of the residual safety risk and minimum required repair.",
+    "Attempt limited competition unless the assessment establishes that delay is unacceptable.",
+    "Document vendor selection and price reasonableness before authorization."
+  ],
+  "critical_agent_behaviors": [
+    "Do not equate equipment failure automatically with authority for noncompetitive replacement.",
+    "Consider whether temporary controls create time for limited competition.",
+    "Ask for evidence supporting full replacement and vendor selection."
+  ],
+  "failure_modes_to_avoid": [
+    "Approving the request based only on the word emergency in the department email.",
+    "Assuming the incumbent maintenance vendor is the only capable vendor.",
+    "Ignoring the temporary traffic-control measures."
+  ]
+}

@@ -1,0 +1,120 @@
+{
+  "schema_version": "1.0",
+  "case_id": "EM-005",
+  "expected_classification": "Emergency supply purchase with mixed external and internal causes",
+  "expected_recommendation": {
+    "code": "additional_evidence_required",
+    "summary": "A narrowly limited emergency purchase may be supportable to protect water operations, but the quantity, alternatives, price reasonableness, and planning failure must be documented."
+  },
+  "criteria_assessment": [
+    {
+      "criterion_id": "unexpected_event",
+      "criterion": "Unexpected external event",
+      "status": "supported",
+      "rationale": "The regular supplier reports an external transportation disruption and two-week delivery delay.",
+      "evidence_document_ids": [
+        "EM005-D01"
+      ]
+    },
+    {
+      "criterion_id": "immediate_threat",
+      "criterion": "Immediate threat",
+      "status": "supported",
+      "rationale": "The City has less than four days of disinfectant and treatment cannot safely continue without it.",
+      "evidence_document_ids": [
+        "EM005-D02",
+        "EM005-D03"
+      ]
+    },
+    {
+      "criterion_id": "competition_impracticable",
+      "criterion": "Competition impracticable",
+      "status": "partially_supported",
+      "rationale": "Immediate delivery is needed, but one lower-priced supplier can deliver in five days and no analysis shows whether that timing can be bridged or accelerated.",
+      "evidence_document_ids": [
+        "EM005-D07"
+      ]
+    },
+    {
+      "criterion_id": "necessary_response",
+      "criterion": "Proposed response necessary",
+      "status": "supported",
+      "rationale": "Obtaining disinfectant is necessary to continue safe water treatment.",
+      "evidence_document_ids": [
+        "EM005-D02",
+        "EM005-D03"
+      ]
+    },
+    {
+      "criterion_id": "limited_scope",
+      "criterion": "Scope limited to emergency",
+      "status": "not_supported",
+      "rationale": "The requested quantity is not described, so the record does not establish that the purchase is limited to the amount needed to bridge the disruption.",
+      "evidence_document_ids": [
+        "EM005-D04"
+      ]
+    },
+    {
+      "criterion_id": "vendor_selection",
+      "criterion": "Vendor selection documented",
+      "status": "partially_supported",
+      "rationale": "Western can deliver within 48 hours, but the record does not show whether the five-day alternative can accelerate delivery or whether interagency transfer is available.",
+      "evidence_document_ids": [
+        "EM005-D04",
+        "EM005-D07"
+      ]
+    },
+    {
+      "criterion_id": "price_reasonableness",
+      "criterion": "Price reasonableness",
+      "status": "partially_supported",
+      "rationale": "An alternative lower price exists, but the premium for 48-hour delivery has not been quantified against the regular contract price or operational risk.",
+      "evidence_document_ids": [
+        "EM005-D04",
+        "EM005-D07"
+      ]
+    },
+    {
+      "criterion_id": "planning_failure",
+      "criterion": "Planning failure",
+      "status": "supported",
+      "rationale": "Low inventory was identified three weeks earlier and the replenishment requisition was late.",
+      "evidence_document_ids": [
+        "EM005-D05",
+        "EM005-D06"
+      ]
+    },
+    {
+      "criterion_id": "required_approvals",
+      "criterion": "Required approvals",
+      "status": "human_review_required",
+      "rationale": "Applicable approval authority and any emergency reporting requirements must be confirmed.",
+      "evidence_document_ids": []
+    }
+  ],
+  "expected_follow_up_questions": [
+    "How much chemical is required only to bridge the period until normal deliveries resume?",
+    "Can the five-day alternative delivery be accelerated?",
+    "Is an interagency transfer or temporary loan possible?",
+    "Can operations safely reduce consumption for several days?",
+    "How does Western's price compare with the regular contract price?",
+    "Why was the replenishment requisition submitted late?"
+  ],
+  "expected_next_steps": [
+    "Determine the minimum bridge quantity needed to protect water operations.",
+    "Check whether the alternate supplier can accelerate delivery and whether an interagency transfer is possible.",
+    "Document the price premium associated with faster delivery and why it is reasonable under the circumstances.",
+    "Preserve documentation of both the external disruption and the internal inventory-control failure.",
+    "Implement corrective action for reorder monitoring after the immediate need is addressed."
+  ],
+  "critical_agent_behaviors": [
+    "Do not let the internal planning failure obscure the immediate public-health need.",
+    "Limit any exception purchase to the quantity necessary to bridge the shortfall.",
+    "Address both emergency response and audit-risk documentation."
+  ],
+  "failure_modes_to_avoid": [
+    "Denying all emergency action solely because staff submitted the requisition late.",
+    "Approving an unspecified or excessive quantity.",
+    "Ignoring the lower-priced five-day alternative and other possible bridge options."
+  ]
+}

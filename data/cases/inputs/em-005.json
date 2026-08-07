@@ -1,0 +1,51 @@
+{
+  "schema_version": "1.0",
+  "case_id": "EM-005",
+  "title": "Critical Chemical Shortage With Conflicting Evidence",
+  "workflow_type": "emergency_procurement",
+  "jurisdiction": {
+    "state": "California",
+    "agency": "Pilot City"
+  },
+  "department": "Water Operations",
+  "estimated_amount_usd": 92000,
+  "proposed_vendor": "Western Treatment Supply",
+  "request_text": "The City has fewer than four days of disinfectant chemical remaining for its water treatment operations. The regular supplier advised that its next shipment will be delayed by two weeks because of a regional transportation disruption. Water Operations requests emergency authority to purchase the chemical from Western Treatment Supply, which can deliver within 48 hours.",
+  "available_documents": [
+    {
+      "document_id": "EM005-D01",
+      "title": "Regular Supplier Delay Notice",
+      "summary": "States that the next shipment will be delayed two weeks because of a regional transportation disruption."
+    },
+    {
+      "document_id": "EM005-D02",
+      "title": "Chemical Inventory Report",
+      "summary": "Shows fewer than four days of disinfectant supply remaining."
+    },
+    {
+      "document_id": "EM005-D03",
+      "title": "Operations Memorandum",
+      "summary": "Explains that water treatment cannot continue safely without the chemical."
+    },
+    {
+      "document_id": "EM005-D04",
+      "title": "Western Treatment Supply Quote",
+      "summary": "Offers delivery within 48 hours for $92,000."
+    },
+    {
+      "document_id": "EM005-D05",
+      "title": "Low-Inventory Warning Email",
+      "summary": "Shows staff were warned three weeks earlier that inventory was below the normal reorder level."
+    },
+    {
+      "document_id": "EM005-D06",
+      "title": "Late Requisition Record",
+      "summary": "Shows the replenishment requisition was submitted later than required by the normal process."
+    },
+    {
+      "document_id": "EM005-D07",
+      "title": "Alternative Supplier Email",
+      "summary": "An alternate supplier can deliver in five days at a lower price."
+    }
+  ]
+}

@@ -1,0 +1,105 @@
+{
+  "schema_version": "1.0",
+  "case_id": "EM-001",
+  "expected_classification": "Emergency public project",
+  "expected_recommendation": {
+    "code": "sufficiently_supported",
+    "summary": "The emergency appears sufficiently supported, subject to confirmation of approval authority, public-works requirements, and price reasonableness."
+  },
+  "criteria_assessment": [
+    {
+      "criterion_id": "unexpected_event",
+      "criterion": "Unexpected event",
+      "status": "supported",
+      "rationale": "The force-main rupture occurred suddenly and is documented by the incident report.",
+      "evidence_document_ids": [
+        "EM001-D01"
+      ]
+    },
+    {
+      "criterion_id": "immediate_threat",
+      "criterion": "Immediate threat",
+      "status": "supported",
+      "rationale": "Wastewater may overflow into a storm drain and create environmental and public-health consequences.",
+      "evidence_document_ids": [
+        "EM001-D02",
+        "EM001-D03"
+      ]
+    },
+    {
+      "criterion_id": "competition_impracticable",
+      "criterion": "Competition impracticable",
+      "status": "supported",
+      "rationale": "Two alternate contractors were contacted but could not meet the immediate operational need.",
+      "evidence_document_ids": [
+        "EM001-D05"
+      ]
+    },
+    {
+      "criterion_id": "necessary_response",
+      "criterion": "Proposed response necessary",
+      "status": "supported",
+      "rationale": "Bypass pumping and immediate repair directly address the rupture and overflow risk.",
+      "evidence_document_ids": [
+        "EM001-D03",
+        "EM001-D04"
+      ]
+    },
+    {
+      "criterion_id": "limited_scope",
+      "criterion": "Scope limited to emergency",
+      "status": "supported",
+      "rationale": "The described scope consists of excavation, repair, restoration, and traffic control necessary to restore the failed facility.",
+      "evidence_document_ids": [
+        "EM001-D04"
+      ]
+    },
+    {
+      "criterion_id": "vendor_selection",
+      "criterion": "Vendor selection documented",
+      "status": "supported",
+      "rationale": "The proposed vendor can mobilize immediately and alternatives were unavailable or unqualified for the required equipment.",
+      "evidence_document_ids": [
+        "EM001-D05",
+        "EM001-D06"
+      ]
+    },
+    {
+      "criterion_id": "price_reasonableness",
+      "criterion": "Price reasonableness",
+      "status": "partially_supported",
+      "rationale": "A quote exists, but no engineer estimate, historical unit pricing, or other price comparison is provided.",
+      "evidence_document_ids": [
+        "EM001-D04"
+      ]
+    },
+    {
+      "criterion_id": "required_approvals",
+      "criterion": "Required approvals",
+      "status": "human_review_required",
+      "rationale": "The applicable approval authority and any governing-body reporting requirements must be verified against current law and agency policy.",
+      "evidence_document_ids": []
+    }
+  ],
+  "expected_follow_up_questions": [
+    "Does the quote separate immediate repair from permanent restoration?",
+    "Was the price compared with a recent similar repair, unit-price contract, or engineer's estimate?",
+    "Who has authority to approve an emergency public project at this amount?",
+    "What governing-body reporting or continued-review requirements apply after work begins?"
+  ],
+  "expected_next_steps": [
+    "Confirm current approval authority and post-award reporting requirements.",
+    "Document a price-reasonableness method using available historical, unit-price, or engineer-estimate information.",
+    "Retain the incident report, photographs, engineer memorandum, contractor-availability evidence, quote, approvals, and final invoices in the audit file."
+  ],
+  "critical_agent_behaviors": [
+    "Recognize that attempted competition and contractor unavailability support immediate action.",
+    "Do not delay a necessary emergency response solely because only one formal quote is available.",
+    "Still require reasonable price support and confirmation of approval authority."
+  ],
+  "failure_modes_to_avoid": [
+    "Rejecting the request solely because three formal bids were not obtained.",
+    "Treating emergency authority as eliminating all public-works, licensing, insurance, wage, or approval requirements.",
+    "Inventing a price comparison that is not in the record."
+  ]
+}

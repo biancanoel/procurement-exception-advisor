@@ -1,0 +1,36 @@
+{
+  "schema_version": "1.0",
+  "case_id": "EM-003",
+  "title": "Contract Expiration Caused by Poor Planning",
+  "workflow_type": "emergency_procurement",
+  "jurisdiction": {
+    "state": "California",
+    "agency": "Pilot City"
+  },
+  "department": "Facilities",
+  "estimated_amount_usd": 240000,
+  "proposed_vendor": "CleanCity Services",
+  "request_text": "The City's janitorial contract expires Friday. Facilities did not complete the replacement solicitation in time, and no new contract is ready for award. Janitorial services are required at City Hall, the police station, and public restrooms. The department requests an emergency six-month contract with the incumbent vendor to prevent an interruption in service.",
+  "available_documents": [
+    {
+      "document_id": "EM003-D01",
+      "title": "Current Janitorial Contract",
+      "summary": "Shows the contract expiration date this Friday."
+    },
+    {
+      "document_id": "EM003-D02",
+      "title": "Advance Reminder Emails",
+      "summary": "Shows the department was reminded six months earlier to begin a replacement solicitation."
+    },
+    {
+      "document_id": "EM003-D03",
+      "title": "Incomplete Draft Scope of Work",
+      "summary": "Shows that solicitation preparation began but was not completed."
+    },
+    {
+      "document_id": "EM003-D04",
+      "title": "CleanCity Six-Month Proposal",
+      "summary": "Offers six months of continued service for $240,000."
+    }
+  ]
+}

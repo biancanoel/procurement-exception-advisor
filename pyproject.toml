@@ -1,0 +1,17 @@
+[project]
+name = "procurement-exception-advisor"
+version = "0.1.0"
+description = "Agentic decision support for emergency and sole-source procurement exceptions"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.7,<3.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8,<10",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

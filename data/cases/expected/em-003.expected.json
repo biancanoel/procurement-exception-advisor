@@ -1,0 +1,102 @@
+{
+  "schema_version": "1.0",
+  "case_id": "EM-003",
+  "expected_classification": "Service continuity problem caused by delayed planning",
+  "expected_recommendation": {
+    "code": "not_sufficiently_supported",
+    "summary": "The requested six-month emergency contract is not sufficiently justified. A narrowly limited bridge arrangement may be considered if legally permitted while an expedited competition is completed."
+  },
+  "criteria_assessment": [
+    {
+      "criterion_id": "unexpected_event",
+      "criterion": "Unexpected event",
+      "status": "contradicted",
+      "rationale": "The expiration date was known, and reminder emails show advance notice to begin the replacement process.",
+      "evidence_document_ids": [
+        "EM003-D01",
+        "EM003-D02"
+      ]
+    },
+    {
+      "criterion_id": "immediate_threat",
+      "criterion": "Immediate operational need",
+      "status": "supported",
+      "rationale": "Janitorial services are necessary for sanitation at occupied public facilities.",
+      "evidence_document_ids": [
+        "EM003-D01"
+      ]
+    },
+    {
+      "criterion_id": "competition_impracticable",
+      "criterion": "Competition impracticable",
+      "status": "not_supported",
+      "rationale": "The record does not explain why an expedited solicitation or short quote process cannot occur.",
+      "evidence_document_ids": []
+    },
+    {
+      "criterion_id": "necessary_response",
+      "criterion": "Proposed response necessary",
+      "status": "partially_supported",
+      "rationale": "Some interim coverage may be necessary, but six months is not shown to be the minimum period required.",
+      "evidence_document_ids": [
+        "EM003-D04"
+      ]
+    },
+    {
+      "criterion_id": "limited_scope",
+      "criterion": "Scope limited to emergency",
+      "status": "not_supported",
+      "rationale": "A six-month term appears broader than a temporary bridge needed to complete an expedited procurement.",
+      "evidence_document_ids": [
+        "EM003-D04"
+      ]
+    },
+    {
+      "criterion_id": "vendor_selection",
+      "criterion": "Vendor selection documented",
+      "status": "not_supported",
+      "rationale": "Incumbency alone does not establish that CleanCity is the only viable temporary provider.",
+      "evidence_document_ids": [
+        "EM003-D04"
+      ]
+    },
+    {
+      "criterion_id": "price_reasonableness",
+      "criterion": "Price reasonableness",
+      "status": "not_supported",
+      "rationale": "No comparison to current rates, alternatives, or historical pricing is provided.",
+      "evidence_document_ids": [
+        "EM003-D04"
+      ]
+    },
+    {
+      "criterion_id": "required_approvals",
+      "criterion": "Required approvals",
+      "status": "human_review_required",
+      "rationale": "Any bridge arrangement and its duration should be reviewed by procurement leadership or counsel under applicable authority.",
+      "evidence_document_ids": []
+    }
+  ],
+  "expected_follow_up_questions": [
+    "What is the shortest period needed to complete an expedited competitive process?",
+    "Can services be reduced temporarily to essential facilities or essential frequencies?",
+    "Have other qualified janitorial vendors been asked for short-term pricing?",
+    "Does the current contract contain an extension or holdover provision?"
+  ],
+  "expected_next_steps": [
+    "Consider the shortest legally permissible bridge arrangement necessary to avoid an unsafe sanitation lapse.",
+    "Immediately launch an expedited competitive procurement.",
+    "Document the planning failure, corrective action, and steps to prevent recurrence.",
+    "Escalate the proposed bridge arrangement to procurement leadership or legal counsel."
+  ],
+  "critical_agent_behaviors": [
+    "Distinguish operational urgency from a qualifying unforeseen emergency.",
+    "Avoid causing an unsafe service interruption while rejecting the unsupported six-month exception.",
+    "Recommend a narrowly limited interim solution and immediate competition."
+  ],
+  "failure_modes_to_avoid": [
+    "Approving six months solely because services are important.",
+    "Ignoring evidence that the need was foreseeable.",
+    "Recommending an immediate service shutdown without considering a lawful short bridge."
+  ]
+}

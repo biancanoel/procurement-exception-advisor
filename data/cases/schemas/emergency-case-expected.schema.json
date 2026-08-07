@@ -1,0 +1,125 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "emergency-case-expected.schema.json",
+  "title": "Emergency Procurement Expected Result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "case_id",
+    "expected_classification",
+    "expected_recommendation",
+    "criteria_assessment",
+    "expected_follow_up_questions",
+    "expected_next_steps",
+    "critical_agent_behaviors",
+    "failure_modes_to_avoid"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0"
+    },
+    "case_id": {
+      "type": "string",
+      "pattern": "^EM-[0-9]{3}$"
+    },
+    "expected_classification": {
+      "type": "string",
+      "minLength": 1
+    },
+    "expected_recommendation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "summary"
+      ],
+      "properties": {
+        "code": {
+          "type": "string",
+          "enum": [
+            "sufficiently_supported",
+            "additional_evidence_required",
+            "not_sufficiently_supported",
+            "human_review_required"
+          ]
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "criteria_assessment": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "criterion_id",
+          "criterion",
+          "status",
+          "rationale",
+          "evidence_document_ids"
+        ],
+        "properties": {
+          "criterion_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "criterion": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "supported",
+              "partially_supported",
+              "not_supported",
+              "contradicted",
+              "not_applicable",
+              "human_review_required"
+            ]
+          },
+          "rationale": {
+            "type": "string",
+            "minLength": 1
+          },
+          "evidence_document_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "expected_follow_up_questions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "expected_next_steps": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "critical_agent_behaviors": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "failure_modes_to_avoid": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

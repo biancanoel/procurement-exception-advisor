@@ -1,0 +1,41 @@
+{
+  "schema_version": "1.0",
+  "case_id": "EM-004",
+  "title": "Valid Emergency With Excessive Scope",
+  "workflow_type": "emergency_procurement",
+  "jurisdiction": {
+    "state": "California",
+    "agency": "Pilot City"
+  },
+  "department": "Facilities",
+  "estimated_amount_usd": 475000,
+  "proposed_vendor": "Pacific Roofing and Construction",
+  "request_text": "A windstorm damaged the roof of the community center, allowing water to enter the building. Additional rain is forecast within three days. Facilities requests emergency authorization for a complete roof replacement. The proposed work also includes upgraded insulation, installation of new skylights, replacement of undamaged gutters, and repainting portions of the exterior.",
+  "available_documents": [
+    {
+      "document_id": "EM004-D01",
+      "title": "Storm-Damage Photographs",
+      "summary": "Shows active roof damage and interior water intrusion."
+    },
+    {
+      "document_id": "EM004-D02",
+      "title": "Weather Forecast",
+      "summary": "Shows additional rain forecast within three days."
+    },
+    {
+      "document_id": "EM004-D03",
+      "title": "Building Inspector Memorandum",
+      "summary": "Identifies active leaks and recommends immediate weatherproofing."
+    },
+    {
+      "document_id": "EM004-D04",
+      "title": "Pacific Roofing Proposal",
+      "summary": "Includes full roof replacement, upgraded insulation, skylights, undamaged gutter replacement, and exterior painting for $475,000."
+    },
+    {
+      "document_id": "EM004-D05",
+      "title": "Roof Maintenance Records",
+      "summary": "Shows that portions of the roof were already scheduled for replacement next year."
+    }
+  ]
+}

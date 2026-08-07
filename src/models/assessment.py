@@ -1,0 +1,190 @@
+"""Models for structured emergency procurement assessments."""
+
+from __future__ import annotations
+
+from enum import StrEnum
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from models.criteria import CriterionStatus
+
+
+class StrictModel(BaseModel):
+    """Base model that rejects unexpected fields."""
+
+    model_config = ConfigDict(
+        extra="forbid",
+        str_strip_whitespace=True,
+        validate_assignment=True,
+    )
+
+
+class FinalRecommendation(StrEnum):
+    """Possible overall recommendations for an emergency request."""
+
+    SUFFICIENTLY_SUPPORTED = "sufficiently_supported"
+    ADDITIONAL_EVIDENCE_REQUIRED = "additional_evidence_required"
+    NOT_SUFFICIENTLY_SUPPORTED = "not_sufficiently_supported"
+    HUMAN_REVIEW_REQUIRED = "human_review_required"
+
+
+class EvidenceReference(StrictModel):
+    """A specific fact or document used in an assessment."""
+
+    source_id: str = Field(min_length=1)
+
+    source_type: str = Field(min_length=1)
+
+    description: str = Field(min_length=1)
+
+    source_location: str | None = None
+
+    quote_or_fact: str | None = None
+
+
+class CriterionResult(StrictModel):
+    """The completed assessment for one emergency criterion.
+      Stores the agen't conclusion for each checklist item"""
+
+    criterion_id: str = Field(
+        min_length=1,
+        pattern=r"^[a-z][a-z0-9_]*$",
+    )
+
+    status: CriterionStatus
+
+    rationale: str = Field(min_length=1)
+
+    supporting_evidence: list[EvidenceReference] = Field(
+        default_factory=list,
+    )
+
+    conflicting_evidence: list[EvidenceReference] = Field(
+        default_factory=list,
+    )
+
+    missing_evidence: list[str] = Field(
+        default_factory=list,
+    )
+
+    follow_up_questions: list[str] = Field(
+        default_factory=list,
+    )
+
+    confidence: float = Field(
+        ge=0.0,
+        le=1.0,
+    )
+
+    requires_human_review: bool = False
+
+    human_review_reason: str | None = None
+
+    @field_validator(
+        "missing_evidence",
+        "follow_up_questions",
+    )
+    @classmethod
+    def list_values_must_be_unique(
+        cls,
+        values: list[str],
+    ) -> list[str]:
+        normalized = [value.casefold() for value in values]
+
+        if len(normalized) != len(set(normalized)):
+            raise ValueError(
+                "List values must be unique."
+            )
+
+        return values
+
+
+class AuditRisk(StrictModel):
+    """A risk that may weaken the procurement file."""
+
+    risk_id: str = Field(
+        min_length=1,
+        pattern=r"^[a-z][a-z0-9_]*$",
+    )
+
+    title: str = Field(min_length=1)
+
+    description: str = Field(min_length=1)
+
+    severity: str = Field(
+        pattern=r"^(low|medium|high|critical)$"
+    )
+
+    related_criterion_ids: list[str] = Field(
+        default_factory=list,
+    )
+
+    recommended_action: str = Field(min_length=1)
+
+
+class EmergencyAssessment(StrictModel):
+    """Combines all criterion results into the final recommendation resulting in one 
+    complete structured assessment for one emergency request."""
+
+    schema_version: str = "1.0"
+
+    case_id: str = Field(
+        pattern=r"^EM-[0-9]{3}$"
+    )
+
+    recommendation: FinalRecommendation
+
+    executive_summary: str = Field(min_length=1)
+
+    classification: str = Field(min_length=1)
+
+    criterion_results: list[CriterionResult] = Field(
+        min_length=1,
+    )
+
+    audit_risks: list[AuditRisk] = Field(
+        default_factory=list,
+    )
+
+    missing_documents: list[str] = Field(
+        default_factory=list,
+    )
+
+    next_steps: list[str] = Field(
+        default_factory=list,
+    )
+
+    required_approvals: list[str] = Field(
+        default_factory=list,
+    )
+
+    source_ids_used: list[str] = Field(
+        default_factory=list,
+    )
+
+    overall_confidence: float = Field(
+        ge=0.0,
+        le=1.0,
+    )
+
+    requires_human_review: bool = False
+
+    human_review_reason: str | None = None
+
+    @field_validator("criterion_results")
+    @classmethod
+    def criterion_ids_must_be_unique(
+        cls,
+        results: list[CriterionResult],
+    ) -> list[CriterionResult]:
+        criterion_ids = [
+            result.criterion_id
+            for result in results
+        ]
+
+        if len(criterion_ids) != len(set(criterion_ids)):
+            raise ValueError(
+                "criterion_results contains duplicate criterion IDs."
+            )
+
+        return results

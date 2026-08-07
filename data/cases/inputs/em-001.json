@@ -1,0 +1,46 @@
+{
+  "schema_version": "1.0",
+  "case_id": "EM-001",
+  "title": "Emergency Sewer Main Repair",
+  "workflow_type": "emergency_procurement",
+  "jurisdiction": {
+    "state": "California",
+    "agency": "Pilot City"
+  },
+  "department": "Public Works",
+  "estimated_amount_usd": 184000,
+  "proposed_vendor": "Inland Utility Contractors",
+  "request_text": "At approximately 4:30 a.m. today, a 12-inch sewer force main ruptured beneath Oak Valley Parkway. Wastewater is surfacing near the roadway and may enter a nearby storm drain. Public Works isolated the affected section, but continued bypass pumping is required to prevent an overflow. Inland Utility Contractors can mobilize within two hours. The department requests authorization to proceed immediately with excavation, pipe replacement, pavement restoration, and traffic control.",
+  "available_documents": [
+    {
+      "document_id": "EM001-D01",
+      "title": "Public Works Incident Report",
+      "summary": "Documents the rupture time, location, response actions, and current conditions."
+    },
+    {
+      "document_id": "EM001-D02",
+      "title": "Time-Stamped Photographs",
+      "summary": "Shows wastewater surfacing near the roadway and storm-drain proximity."
+    },
+    {
+      "document_id": "EM001-D03",
+      "title": "Engineer Memorandum",
+      "summary": "Describes the force-main failure, overflow risk, and need for immediate repair and bypass pumping."
+    },
+    {
+      "document_id": "EM001-D04",
+      "title": "Inland Utility Contractors Quote",
+      "summary": "Proposes emergency repair work for $184,000."
+    },
+    {
+      "document_id": "EM001-D05",
+      "title": "Contractor Availability Emails",
+      "summary": "One contractor is unavailable for four days; another lacks required bypass-pumping equipment."
+    },
+    {
+      "document_id": "EM001-D06",
+      "title": "Vendor Qualification Records",
+      "summary": "Contains contractor-license and insurance documentation."
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "schema_version": "1.0",
+  "case_id": "EM-002",
+  "title": "Failed Traffic Signal With Incomplete Evidence",
+  "workflow_type": "emergency_procurement",
+  "jurisdiction": {
+    "state": "California",
+    "agency": "Pilot City"
+  },
+  "department": "Public Works",
+  "estimated_amount_usd": 68500,
+  "proposed_vendor": "SignalTech Systems",
+  "request_text": "The traffic signal at Beaumont Avenue and Sixth Street stopped operating yesterday afternoon. Public Works placed temporary stop signs at the intersection, but traffic is backing up during peak hours. SignalTech Systems maintains several of the City's signals and can replace the controller and damaged cabinet this week. The department considers this an emergency and wants to issue a purchase order immediately.",
+  "available_documents": [
+    {
+      "document_id": "EM002-D01",
+      "title": "Department Emergency Request Email",
+      "summary": "Requests immediate authorization and states that the signal is not operating."
+    },
+    {
+      "document_id": "EM002-D02",
+      "title": "SignalTech Quote",
+      "summary": "Proposes controller and cabinet replacement for $68,500."
+    },
+    {
+      "document_id": "EM002-D03",
+      "title": "Intersection Photograph",
+      "summary": "Shows the disabled signal and temporary stop signs."
+    },
+    {
+      "document_id": "EM002-D04",
+      "title": "Maintenance Log",
+      "summary": "Briefly notes that the signal cabinet failed."
+    }
+  ]
+}
