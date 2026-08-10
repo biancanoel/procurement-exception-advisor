@@ -3,6 +3,9 @@ Name: procurement-exception-advisor
 Version: 0.1.0
 Summary: Agentic decision support for emergency and sole-source procurement exceptions
 Requires-Python: >=3.11
+Requires-Dist: chromadb<2,>=1
+Requires-Dist: openai<3,>=2
 Requires-Dist: pydantic<3.0,>=2.7
+Requires-Dist: pypdf<7,>=6
 Provides-Extra: dev
 Requires-Dist: pytest<10,>=8; extra == "dev"

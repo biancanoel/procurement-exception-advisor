@@ -9,4 +9,5 @@ htmlcov/
 *.sqlite3
 *.db
 chroma/
+.chroma/
 vector_store/

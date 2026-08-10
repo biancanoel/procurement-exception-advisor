@@ -1,0 +1,4 @@
+[console_scripts]
+index-santa-monica-policy = rag.retriever:index_main
+ingest-santa-monica-policy = rag.ingest:main
+query-procurement-policy = rag.retriever:query_main
