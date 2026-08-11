@@ -22,6 +22,7 @@ src/procurement_exception_advisor.egg-info/entry_points.txt
 src/procurement_exception_advisor.egg-info/requires.txt
 src/procurement_exception_advisor.egg-info/top_level.txt
 src/rag/__init__.py
+src/rag/answerer.py
 src/rag/ingest.py
 src/rag/metadata.py
 src/rag/retriever.py
@@ -31,6 +32,7 @@ tests/test_assessment_models.py
 tests/test_case_loader.py
 tests/test_case_models.py
 tests/test_emergency_criteria.py
+tests/test_rag_answerer.py
 tests/test_rag_ingest.py
 tests/test_rag_metadata.py
 tests/test_rag_retriever.py

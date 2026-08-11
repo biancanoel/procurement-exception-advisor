@@ -24,6 +24,9 @@ DEFAULT_ORDINANCE_TEXT_PATH = Path(
 DEFAULT_MUNICIPAL_CODE_DOCX_PATH = Path(
     "data/policies/santa_monica/SM Municipal Code.docx"
 )
+DEFAULT_CALIFORNIA_PCC_1102_PATH = Path(
+    "data/policies/california/PCC_1102.pdf"
+)
 DEFAULT_MAX_CHUNK_CHARS = 4_000
 _DOCUSIGN_ID_RE = re.compile(
     r"^docusign envelope id:\s*[0-9a-f-]+$",
@@ -32,6 +35,7 @@ _DOCUSIGN_ID_RE = re.compile(
 _STANDALONE_PAGE_NUMBER_RE = re.compile(r"^\d+$")
 _NAMED_SECTION_RE = re.compile(
     r"^(?:§\s*)?(?:(?P<code>\d+\.\d+\.\d+)\.?\s+|"
+    r"(?P<statute>\d{3,6}(?:\.\d+)?)\.\s+|"
     r"(?P<ordinance>SECTION\s+\d+\.)(?=\s))",
     re.IGNORECASE,
 )
@@ -44,6 +48,9 @@ _DOWNLOAD_METADATA_RE = re.compile(
 )
 _SECTION_RANGE_HEADER_RE = re.compile(
     r"^§\s*\d+(?:\.\d+)+\s+§\s*\d+(?:\.\d+)+$"
+)
+_LEGAL_EXPORT_HEADER_RE = re.compile(
+    r"^(?:State of [A-Za-z ]+|[A-Z][A-Z ]+ CODE|Section\s+\d+(?:\.\d+)?)$"
 )
 _WORD_NS = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 
@@ -85,6 +92,8 @@ def clean_page_text(
         if _DOCUSIGN_ID_RE.fullmatch(line):
             continue
         if _SECTION_RANGE_HEADER_RE.fullmatch(line):
+            continue
+        if _LEGAL_EXPORT_HEADER_RE.fullmatch(line):
             continue
         if _section_label(
             line,
@@ -514,6 +523,25 @@ def santa_monica_municipal_code_metadata(
         document_type="municipal_code",
         authority_level="local_law",
         source_path=str(docx_path),
+    )
+
+
+def california_pcc_1102_metadata(
+    pdf_path: str | Path,
+) -> ProcurementDocumentMetadata:
+    """Return statewide metadata for California Public Contract Code § 1102."""
+
+    return ProcurementDocumentMetadata(
+        document_id="CA-PCC-1102",
+        title="California Public Contract Code § 1102 - Emergency Definition",
+        jurisdiction="California",
+        agency="State of California",
+        document_type="statute",
+        effective_date=date(1995, 1, 1),
+        authority_level="statute",
+        exception_type="emergency",
+        section="1102",
+        source_path=str(pdf_path),
     )
 
 

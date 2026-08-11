@@ -13,7 +13,9 @@ dependencies = [
 [project.scripts]
 ingest-santa-monica-policy = "rag.ingest:main"
 index-santa-monica-policy = "rag.retriever:index_main"
+index-procurement-policies = "rag.retriever:index_main"
 query-procurement-policy = "rag.retriever:query_main"
+ask-procurement-policy = "rag.answerer:main"
 
 [project.optional-dependencies]
 dev = [

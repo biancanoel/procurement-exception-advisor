@@ -6,6 +6,7 @@ import zipfile
 import pytest
 
 from rag.ingest import (
+    california_pcc_1102_metadata,
     chunk_page_text,
     clean_page_text,
     ingest_docx,
@@ -289,3 +290,41 @@ def test_municipal_code_metadata_uses_canonical_local_law() -> None:
 
     assert metadata.authority_level == "local_law"
     assert metadata.document_type == "municipal_code"
+
+
+def test_california_statute_metadata_is_statewide_and_canonical() -> None:
+    metadata = california_pcc_1102_metadata("PCC_1102.pdf")
+
+    assert metadata.document_id == "CA-PCC-1102"
+    assert metadata.jurisdiction == "California"
+    assert metadata.agency == "State of California"
+    assert metadata.authority_level == "statute"
+    assert metadata.section == "1102"
+
+
+def test_california_statute_header_is_removed_and_section_is_preserved(
+    monkeypatch,
+) -> None:
+    class StatuteReader:
+        def __init__(self, _path: Path) -> None:
+            self.pages = [
+                FakePage(
+                    "State of California\n"
+                    "PUBLIC CONTRACT CODE\n"
+                    "Section 1102\n"
+                    "1102. Emergency means a sudden, unexpected occurrence."
+                )
+            ]
+
+    monkeypatch.setattr("rag.ingest.PdfReader", StatuteReader)
+    metadata = california_pcc_1102_metadata("PCC_1102.pdf")
+
+    page_count, chunks = ingest_pdf("PCC_1102.pdf", metadata)
+
+    assert page_count == 1
+    assert len(chunks) == 1
+    assert chunks[0].metadata.section == "1102"
+    assert chunks[0].metadata.authority_level == "statute"
+    assert chunks[0].text == (
+        "1102. Emergency means a sudden, unexpected occurrence."
+    )

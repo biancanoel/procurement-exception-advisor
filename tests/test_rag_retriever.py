@@ -7,10 +7,12 @@ from rag.metadata import DocumentChunk, ProcurementDocumentMetadata
 from rag.retriever import (
     AUTHORITY_PRIORITY,
     OpenAIEmbeddingProvider,
+    diagnose_retrieval,
     get_collection,
     index_chunks,
     rerank_results,
     retrieve_chunks,
+    select_diverse_results,
 )
 
 
@@ -155,6 +157,8 @@ def test_retrieval_reranks_larger_candidate_set_by_authority() -> None:
         def query(self, **kwargs: Any) -> dict[str, Any]:
             self.requested_count = kwargs["n_results"]
             base_metadata = {
+                "document_id": "TEST-DOCUMENT",
+                "jurisdiction": "California",
                 "page": 1,
                 "page_end": 1,
                 "title": "Policy source",
@@ -205,6 +209,134 @@ def test_reranking_priority_mapping_is_configurable() -> None:
     assert results[0].chunk_id == "executive"
 
 
+def test_retrieval_debug_preserves_raw_and_reranked_stages() -> None:
+    class DebugCollection:
+        requested_count: int | None = None
+
+        def query(self, **kwargs: Any) -> dict[str, Any]:
+            self.requested_count = kwargs["n_results"]
+            base_metadata = {
+                "document_id": "TEST-DOCUMENT",
+                "jurisdiction": "California",
+                "page": 1,
+                "title": "Policy source",
+                "agency": "Test Agency",
+            }
+            return {
+                "ids": [["executive", "policy", "law"]],
+                "documents": [["Executive", "Policy", "Law"]],
+                "metadatas": [[
+                    {
+                        **base_metadata,
+                        "section": "8.",
+                        "authority_level": "local_executive_order",
+                    },
+                    {
+                        **base_metadata,
+                        "section": "2.24.080",
+                        "authority_level": "procurement_policy",
+                    },
+                    {
+                        **base_metadata,
+                        "section": "2.24.090",
+                        "authority_level": "local_law",
+                    },
+                ]],
+                "distances": [[0.05, 0.08, 0.10]],
+            }
+
+    collection = DebugCollection()
+    trace = diagnose_retrieval(
+        "emergency purchasing authority",
+        collection=collection,
+        embedder=FakeEmbedder(),
+        top_k=2,
+        debug_limit=10,
+    )
+
+    assert collection.requested_count == 10
+    assert [result.chunk_id for result in trace.raw_semantic_results] == [
+        "executive",
+        "policy",
+        "law",
+    ]
+    assert all(result.rerank_score == 0 for result in trace.raw_semantic_results)
+    assert [result.chunk_id for result in trace.authority_reranked_results] == [
+        "law",
+        "policy",
+        "executive",
+    ]
+    assert [result.chunk_id for result in trace.final_results] == [
+        "law",
+        "policy",
+    ]
+    assert len(trace.diversified_results) == 2
+    assert trace.context_strategy == "ranked"
+
+
+def test_diversity_selection_reduces_duplicate_provisions() -> None:
+    primary = make_result("primary", "local_law", similarity=0.95)
+    primary.document_id = "CODE"
+    primary.section = "2.24.090"
+    primary.text = "The Emergency Services Manager may make emergency purchases."
+    duplicate = make_result("duplicate", "local_law", similarity=0.94)
+    duplicate.document_id = "ORDINANCE"
+    duplicate.section = "2.24.090"
+    duplicate.text = primary.text
+    distinct = make_result("distinct", "local_law", similarity=0.88)
+    distinct.document_id = "CODE"
+    distinct.section = "2.24.080"
+    distinct.text = "The Purchasing Agent may make emergency purchases."
+    candidates = rerank_results([primary, duplicate, distinct], top_k=3)
+
+    selected = select_diverse_results(
+        candidates,
+        top_k=2,
+        relevance_weight=0.7,
+    )
+
+    assert [result.chunk_id for result in selected] == ["primary", "distinct"]
+
+
+def test_diversity_selection_preserves_strongest_relevant_result() -> None:
+    strongest = make_result("strongest", "local_law", similarity=0.99)
+    strongest.text = "City Manager emergency purchasing authority"
+    weaker = make_result("weaker", "local_law", similarity=0.60)
+    weaker.text = "Unrelated protest filing procedure"
+    candidates = rerank_results([strongest, weaker], top_k=2)
+
+    selected = select_diverse_results(
+        candidates,
+        top_k=1,
+        relevance_weight=0.6,
+    )
+
+    assert selected[0].chunk_id == "strongest"
+
+
+def test_diversity_selection_keeps_distinct_sections_from_same_document() -> None:
+    sections = []
+    for number, official in (
+        ("2.24.060", "City Manager"),
+        ("2.24.080", "Purchasing Agent"),
+        ("2.24.090", "Emergency Services Manager"),
+    ):
+        result = make_result(number, "local_law", similarity=0.9)
+        result.document_id = "MUNICIPAL-CODE"
+        result.section = number
+        result.text = f"{official} may make emergency purchases."
+        sections.append(result)
+    candidates = rerank_results(sections, top_k=3)
+
+    selected = select_diverse_results(candidates, top_k=3)
+
+    assert {result.section for result in selected} == {
+        "2.24.060",
+        "2.24.080",
+        "2.24.090",
+    }
+
+
 def test_rebuild_replaces_existing_chroma_collection(tmp_path) -> None:
     collection = get_collection(db_path=tmp_path)
     collection.add(
@@ -232,7 +364,9 @@ def make_result(
         semantic_similarity=similarity,
         chunk_id=chunk_id,
         text="Text",
+        document_id="DOCUMENT",
         authority_level=authority_level,
+        jurisdiction="California",
         title="Title",
         agency="Agency",
     )
