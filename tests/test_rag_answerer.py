@@ -1,6 +1,5 @@
 """Offline tests for grounded procurement-policy question answering."""
 
-from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -191,25 +190,50 @@ def test_openai_generator_uses_structured_low_temperature_response() -> None:
         confidence=0.8,
     )
 
-    class FakeResponses:
+    class FakeStructuredModel:
         def __init__(self) -> None:
-            self.kwargs: dict[str, Any] = {}
+            self.messages: list[tuple[str, str]] = []
 
-        def parse(self, **kwargs: Any) -> SimpleNamespace:
-            self.kwargs = kwargs
-            return SimpleNamespace(output_parsed=parsed)
+        def invoke(self, messages: list[tuple[str, str]]) -> GroundedAnswer:
+            self.messages = messages
+            return parsed
 
-    responses = FakeResponses()
-    client = SimpleNamespace(responses=responses)
-    generator = OpenAIAnswerGenerator(client=client, model="test-model")
+    class FakeChatModel:
+        def __init__(self) -> None:
+            self.schema: type[GroundedAnswer] | None = None
+            self.method: str | None = None
+            self.structured_model = FakeStructuredModel()
+
+        def with_structured_output(
+            self,
+            schema: type[GroundedAnswer],
+            *,
+            method: str,
+        ) -> FakeStructuredModel:
+            self.schema = schema
+            self.method = method
+            return self.structured_model
+
+    chat_model = FakeChatModel()
+    generator = OpenAIAnswerGenerator(
+        chat_model=chat_model,
+        model="test-model",
+    )
 
     answer = generator.generate(question="Question?", context="SOURCE 1")
 
     assert answer == parsed
-    assert responses.kwargs["model"] == "test-model"
-    assert responses.kwargs["temperature"] == 0.1
-    assert responses.kwargs["text_format"] is GroundedAnswer
-    instructions = " ".join(responses.kwargs["instructions"].split())
+    assert generator.model == "test-model"
+    assert generator.temperature == 0.1
+    assert chat_model.schema is GroundedAnswer
+    assert chat_model.method == "json_schema"
+    messages = chat_model.structured_model.messages
+    assert messages[0][0] == "system"
+    assert messages[1] == (
+        "human",
+        "QUESTION:\nQuestion?\n\nRETRIEVED EVIDENCE:\nSOURCE 1",
+    )
+    instructions = " ".join(messages[0][1].split())
     assert "only from the retrieved evidence" in instructions
 
 

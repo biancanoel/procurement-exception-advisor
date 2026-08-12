@@ -5,6 +5,7 @@ description = "Agentic decision support for emergency and sole-source procuremen
 requires-python = ">=3.11"
 dependencies = [
     "chromadb>=1,<2",
+    "langchain-openai>=1,<2",
     "openai>=2,<3",
     "pydantic>=2.7,<3.0",
     "pypdf>=6,<7",

@@ -8,6 +8,7 @@ from collections.abc import Callable
 from typing import Any, Protocol
 from typing import Literal
 
+from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from rag.retriever import (
@@ -111,43 +112,50 @@ class AnswerGenerator(Protocol):
 
 
 class OpenAIAnswerGenerator:
-    """Generate structured grounded answers with the OpenAI Responses API."""
+    """Generate structured grounded answers with LangChain ChatOpenAI."""
 
     def __init__(
         self,
         *,
         model: str | None = None,
         temperature: float = DEFAULT_TEMPERATURE,
-        client: Any | None = None,
+        chat_model: Any | None = None,
     ) -> None:
-        if client is None:
+        self.model = model or os.environ.get(
+            "OPENAI_CHAT_MODEL", DEFAULT_CHAT_MODEL
+        )
+        self.temperature = temperature
+        if chat_model is None:
             api_key = os.environ.get("OPENAI_API_KEY")
             if not api_key:
                 raise RuntimeError(
                     "OPENAI_API_KEY must be set to generate grounded answers"
                 )
-            from openai import OpenAI
-
-            client = OpenAI(api_key=api_key)
-        self._client = client
-        self.model = model or os.environ.get(
-            "OPENAI_CHAT_MODEL", DEFAULT_CHAT_MODEL
+            chat_model = ChatOpenAI(
+                model=self.model,
+                temperature=self.temperature,
+                api_key=api_key,
+            )
+        self._structured_model = chat_model.with_structured_output(
+            GroundedAnswer,
+            method="json_schema",
         )
-        self.temperature = temperature
 
     def generate(self, *, question: str, context: str) -> GroundedAnswer:
-        response = self._client.responses.parse(
-            model=self.model,
-            instructions=SYSTEM_PROMPT,
-            input=f"QUESTION:\n{question}\n\nRETRIEVED EVIDENCE:\n{context}",
-            text_format=GroundedAnswer,
-            temperature=self.temperature,
+        response = self._structured_model.invoke(
+            [
+                ("system", SYSTEM_PROMPT),
+                (
+                    "human",
+                    f"QUESTION:\n{question}\n\nRETRIEVED EVIDENCE:\n{context}",
+                ),
+            ]
         )
-        if response.output_parsed is None:
+        if not isinstance(response, GroundedAnswer):
             raise AnswerGenerationError(
-                "OpenAI returned no parseable grounded answer"
+                "ChatOpenAI returned no parseable grounded answer"
             )
-        return response.output_parsed
+        return response
 
 
 def source_reference(result: RetrievalResult) -> SourceReference:
@@ -222,7 +230,7 @@ def answer_question(
     embedder: EmbeddingProvider | None = None,
     generator: AnswerGenerator | None = None,
     retriever: Callable[..., list[RetrievalResult]] | None = None,
-    context_strategy: Literal["ranked", "diversified"] = "ranked",
+    context_strategy: Literal["ranked", "diversified"] = "diversified",
     diversity_relevance_weight: float = DEFAULT_DIVERSITY_RELEVANCE_WEIGHT,
 ) -> GroundedAnswer:
     """Retrieve procurement evidence and generate a grounded structured answer."""
@@ -363,7 +371,7 @@ def main() -> None:
     parser.add_argument(
         "--context-strategy",
         choices=("ranked", "diversified"),
-        default="ranked",
+        default="diversified",
         help="Choose ranked or diversity-aware final LLM context.",
     )
     parser.add_argument(
@@ -380,34 +388,7 @@ def main() -> None:
     args = parser.parse_args()
     try:
         if args.debug_retrieval:
-            collection = get_collection()
-            embedder = OpenAIEmbeddingProvider()
-            trace = diagnose_retrieval(
-                args.question,
-                collection=collection,
-                embedder=embedder,
-                top_k=args.top_k,
-                debug_limit=10,
-                context_strategy=args.context_strategy,
-                diversity_relevance_weight=args.diversity_relevance_weight,
-            )
-            print_retrieval_debug(trace)
-
-            def traced_retriever(
-                *_args: Any,
-                **_kwargs: Any,
-            ) -> list[RetrievalResult]:
-                return trace.final_results
-
-            answer = answer_question(
-                args.question,
-                top_k=args.top_k,
-                collection=collection,
-                embedder=embedder,
-                retriever=traced_retriever,
-                context_strategy=args.context_strategy,
-                diversity_relevance_weight=args.diversity_relevance_weight,
-            )
+            answer = debug_retrieval_answer(args)
         else:
             answer = answer_question(
                 args.question,
@@ -419,6 +400,36 @@ def main() -> None:
         parser.exit(1, f"Error: {error}\n")
     _print_answer(answer)
 
+def debug_retrieval_answer(args: argparse.Namespace) -> None:
+    collection = get_collection()
+    embedder = OpenAIEmbeddingProvider()
+    trace = diagnose_retrieval(
+        args.question,
+        collection=collection,
+        embedder=embedder,
+        top_k=args.top_k,
+        debug_limit=10,
+        context_strategy=args.context_strategy,
+        diversity_relevance_weight=args.diversity_relevance_weight,
+    )
+    print_retrieval_debug(trace)
+
+    def traced_retriever(
+        *_args: Any,
+        **_kwargs: Any,
+    ) -> list[RetrievalResult]:
+        return trace.final_results
+
+    answer = answer_question(
+        args.question,
+        top_k=args.top_k,
+        collection=collection,
+        embedder=embedder,
+        retriever=traced_retriever,
+        context_strategy=args.context_strategy,
+        diversity_relevance_weight=args.diversity_relevance_weight,
+    )
+    return answer
 
 if __name__ == "__main__":
     main()
