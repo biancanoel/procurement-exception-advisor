@@ -1,6 +1,8 @@
 [console_scripts]
 ask-procurement-policy = rag.answerer:main
+get-case-facts = rag.case_tool_demo:main
 index-procurement-policies = rag.retriever:index_main
 index-santa-monica-policy = rag.retriever:index_main
 ingest-santa-monica-policy = rag.ingest:main
 query-procurement-policy = rag.retriever:query_main
+request-procurement-tool-call = rag.tool_call_demo:main

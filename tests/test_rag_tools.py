@@ -2,8 +2,13 @@
 
 from typing import Any
 
+import pytest
+from langchain_core.tools import ToolException
+
+from models.cases import EmergencyCaseInput
 from rag.retriever import RetrievalResult
-from rag.tools import search_procurement_rules
+from rag.tools import get_case_facts, search_procurement_rules
+from data.case_loader import CaseFileNotFoundError
 
 
 def make_result(chunk_id: str, score: float) -> RetrievalResult:
@@ -98,3 +103,67 @@ def test_search_procurement_rules_uses_default_top_k(monkeypatch) -> None:
 
     assert results == []
     assert captured == {"query": "emergency rules", "top_k": 5}
+
+
+def make_case() -> EmergencyCaseInput:
+    return EmergencyCaseInput.model_validate(
+        {
+            "schema_version": "1.0",
+            "case_id": "EM-001",
+            "title": "Emergency Sewer Main Repair",
+            "workflow_type": "emergency_procurement",
+            "jurisdiction": {
+                "state": "California",
+                "agency": "Pilot City",
+            },
+            "department": "Public Works",
+            "estimated_amount_usd": 184000,
+            "proposed_vendor": "Inland Utility Contractors",
+            "request_text": "A ruptured sewer main requires immediate repair.",
+            "available_documents": [
+                {
+                    "document_id": "EM001-D01",
+                    "title": "Public Works Incident Report",
+                    "summary": "Documents the rupture and current conditions.",
+                }
+            ],
+        }
+    )
+
+
+def test_get_case_facts_calls_existing_loader_and_preserves_case(
+    monkeypatch,
+) -> None:
+    expected = make_case()
+    before = expected.model_dump()
+    requested_ids: list[str] = []
+
+    def fake_load_case(case_id: str) -> EmergencyCaseInput:
+        requested_ids.append(case_id)
+        return expected
+
+    monkeypatch.setattr("rag.tools.load_case", fake_load_case)
+
+    result = get_case_facts.invoke({"case_id": "em-001"})
+
+    assert requested_ids == ["em-001"]
+    assert result is expected
+    assert result.case_id == "EM-001"
+    assert result.title == "Emergency Sewer Main Repair"
+    assert result.jurisdiction.state == "California"
+    assert result.jurisdiction.agency == "Pilot City"
+    assert result.department == "Public Works"
+    assert result.estimated_amount_usd == 184000
+    assert result.proposed_vendor == "Inland Utility Contractors"
+    assert result.available_documents[0].summary.startswith("Documents")
+    assert expected.model_dump() == before
+
+
+def test_get_case_facts_handles_unknown_case_safely(monkeypatch) -> None:
+    def missing_case(_case_id: str) -> EmergencyCaseInput:
+        raise CaseFileNotFoundError("Case EM-999 was not found")
+
+    monkeypatch.setattr("rag.tools.load_case", missing_case)
+
+    with pytest.raises(ToolException, match="EM-999.*not found"):
+        get_case_facts.invoke({"case_id": "EM-999"})

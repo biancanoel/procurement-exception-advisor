@@ -17,6 +17,8 @@ index-santa-monica-policy = "rag.retriever:index_main"
 index-procurement-policies = "rag.retriever:index_main"
 query-procurement-policy = "rag.retriever:query_main"
 ask-procurement-policy = "rag.answerer:main"
+request-procurement-tool-call = "rag.tool_call_demo:main"
+get-case-facts = "rag.case_tool_demo:main"
 
 [project.optional-dependencies]
 dev = [
