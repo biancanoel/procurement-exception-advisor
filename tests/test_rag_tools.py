@@ -7,7 +7,11 @@ from langchain_core.tools import ToolException
 
 from models.cases import EmergencyCaseInput
 from rag.retriever import RetrievalResult
-from rag.tools import get_case_facts, search_procurement_rules
+from rag.tools import (
+    get_case_facts,
+    search_government_awards,
+    search_procurement_rules,
+)
 from data.case_loader import CaseFileNotFoundError
 
 
@@ -167,3 +171,92 @@ def test_get_case_facts_handles_unknown_case_safely(monkeypatch) -> None:
 
     with pytest.raises(ToolException, match="EM-999.*not found"):
         get_case_facts.invoke({"case_id": "EM-999"})
+
+
+def test_search_government_awards_calls_mcp_and_preserves_output(
+    monkeypatch,
+) -> None:
+    expected = {
+        "structuredContent": {
+            "results": [
+                {
+                    "Award ID": "TEST-001",
+                    "Recipient Name": "Example Vendor",
+                    "Awarding Agency": "Department of Example",
+                    "Award Amount": 125000,
+                    "Description": "Emergency equipment",
+                    "Start Date": "2026-01-01",
+                    "End Date": "2026-12-31",
+                    "NAICS Code": "423450",
+                    "PSC Code": "6515",
+                }
+            ],
+            "page_metadata": {"page": 1, "hasNext": False},
+        }
+    }
+    captured: dict[str, Any] = {}
+
+    def fake_mcp_call(arguments: dict[str, Any]) -> dict[str, Any]:
+        captured.update(arguments)
+        return expected
+
+    monkeypatch.setattr("rag.tools.call_search_awards", fake_mcp_call)
+
+    result = search_government_awards.invoke(
+        {
+            "keywords": ["emergency equipment"],
+            "awarding_agency": "Department of Example",
+            "time_period_start": "2025-01-01",
+            "time_period_end": "2026-12-31",
+            "naics_codes": [423450],
+            "psc_codes": ["6515"],
+            "award_amount_min": 50000,
+            "award_amount_max": 250000,
+            "limit": 5,
+        }
+    )
+
+    assert captured == {
+        "award_type": "contracts",
+        "keywords": ["emergency equipment"],
+        "awarding_agency": "Department of Example",
+        "time_period_start": "2025-01-01",
+        "time_period_end": "2026-12-31",
+        "naics_codes": [423450],
+        "psc_codes": ["6515"],
+        "award_amount_min": 50000,
+        "award_amount_max": 250000,
+        "limit": 5,
+    }
+    assert result is expected
+    assert result["structuredContent"]["results"][0]["Award ID"] == (
+        "TEST-001"
+    )
+
+
+def test_search_government_awards_omits_unused_arguments(monkeypatch) -> None:
+    captured: dict[str, Any] = {}
+
+    def fake_mcp_call(arguments: dict[str, Any]) -> dict[str, Any]:
+        captured.update(arguments)
+        return {"structuredContent": {"results": []}}
+
+    monkeypatch.setattr("rag.tools.call_search_awards", fake_mcp_call)
+
+    search_government_awards.invoke({"recipient_name": "Example Vendor"})
+
+    assert captured == {
+        "award_type": "contracts",
+        "recipient_name": "Example Vendor",
+        "limit": 10,
+    }
+
+
+def test_search_government_awards_handles_mcp_failure(monkeypatch) -> None:
+    def failing_mcp_call(_arguments: dict[str, Any]) -> dict[str, Any]:
+        raise RuntimeError("server unavailable")
+
+    monkeypatch.setattr("rag.tools.call_search_awards", failing_mcp_call)
+
+    with pytest.raises(ToolException, match="MCP search_awards.*unavailable"):
+        search_government_awards.invoke({"keywords": ["emergency"]})

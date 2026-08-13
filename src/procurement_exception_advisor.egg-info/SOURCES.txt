@@ -1,6 +1,8 @@
 README.md
 pyproject.toml
 src/__init__.py
+src/usaspending_api_test.py
+src/usaspending_mcp_discovery.py
 src/agent/__init__.py
 src/agent/graph.py
 src/agent/nodes.py
@@ -10,7 +12,6 @@ src/data/case_loader.py
 src/decision/__init__.py
 src/decision/assessment_builder.py
 src/decision/emergency_criteria.py
-src/mcp/__init__.py
 src/models/__init__.py
 src/models/assessment.py
 src/models/cases.py

@@ -16,7 +16,11 @@ from rag.tool_call_demo import (
     request_tool_call,
     tool_message_from_result,
 )
-from rag.tools import get_case_facts, search_procurement_rules
+from rag.tools import (
+    get_case_facts,
+    search_government_awards,
+    search_procurement_rules,
+)
 
 
 class FakeBoundModel:
@@ -74,7 +78,11 @@ def test_request_tool_call_binds_tool_and_preserves_model_request(
         chat_model=chat_model,
     )
 
-    assert chat_model.bound_tools == [search_procurement_rules, get_case_facts]
+    assert chat_model.bound_tools == [
+        search_procurement_rules,
+        get_case_facts,
+        search_government_awards,
+    ]
     assert len(chat_model.bound_model.input) == 1
     assert isinstance(chat_model.bound_model.input[0], HumanMessage)
     assert chat_model.bound_model.input[0].content == (
@@ -134,6 +142,20 @@ def make_case_tool_call() -> AIMessage:
                 "name": "get_case_facts",
                 "args": {"case_id": "EM-001"},
                 "id": "call-case-001",
+                "type": "tool_call",
+            }
+        ],
+    )
+
+
+def make_award_tool_call() -> AIMessage:
+    return AIMessage(
+        content="",
+        tool_calls=[
+            {
+                "name": "search_government_awards",
+                "args": {"keywords": ["emergency pumps"], "limit": 3},
+                "id": "call-awards-001",
                 "type": "tool_call",
             }
         ],
@@ -229,6 +251,48 @@ def test_request_and_execute_tool_handles_model_selected_case_tool() -> None:
     assert result.tool_call["id"] == "call-case-001"
     assert fake_tool.arguments == {"case_id": "EM-001"}
     assert result.output is expected_output
+
+
+def test_request_and_execute_tool_handles_model_selected_award_tool() -> None:
+    expected_output = {
+        "structuredContent": {
+            "results": [
+                {
+                    "Award ID": "TEST-001",
+                    "Recipient Name": "Example Vendor",
+                }
+            ]
+        }
+    }
+
+    class FakeAwardTool:
+        def __init__(self) -> None:
+            self.arguments: dict[str, Any] | None = None
+
+        def invoke(self, arguments: dict[str, Any]) -> dict[str, Any]:
+            self.arguments = arguments
+            return expected_output
+
+    fake_tool = FakeAwardTool()
+    result = request_and_execute_tool(
+        "Find similar federal emergency pump awards.",
+        chat_model=FakeChatModel(make_award_tool_call()),
+        tool_registry={"search_government_awards": fake_tool},
+    )
+
+    assert result.executed is True
+    assert result.tool_call is not None
+    assert result.tool_call["name"] == "search_government_awards"
+    assert fake_tool.arguments == {
+        "keywords": ["emergency pumps"],
+        "limit": 3,
+    }
+    assert result.output is expected_output
+
+    observation = tool_message_from_result(result)
+    content = json.loads(str(observation.content))
+    assert observation.tool_call_id == "call-awards-001"
+    assert content["output"] == expected_output
 
 
 def test_case_tool_result_becomes_observation() -> None:

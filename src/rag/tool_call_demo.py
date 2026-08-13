@@ -13,11 +13,18 @@ from langchain_openai import ChatOpenAI
 from pydantic import BaseModel
 
 from rag.answerer import DEFAULT_CHAT_MODEL, DEFAULT_TEMPERATURE
-from rag.retriever import RetrievalResult
-from rag.tools import get_case_facts, search_procurement_rules
+from rag.tools import (
+    get_case_facts,
+    search_government_awards,
+    search_procurement_rules,
+)
 
 
-AVAILABLE_TOOLS = [search_procurement_rules, get_case_facts]
+AVAILABLE_TOOLS = [
+    search_procurement_rules,
+    get_case_facts,
+    search_government_awards,
+]
 
 
 @dataclass(frozen=True)
@@ -25,7 +32,7 @@ class ToolExecutionResult:
     """A requested tool call and its one-step execution outcome."""
 
     tool_call: dict[str, Any] | None
-    output: list[RetrievalResult] | None
+    output: Any | None
     executed: bool
     error: str | None = None
 
@@ -35,7 +42,7 @@ def request_tool_call(
     *,
     chat_model: Any | None = None,
 ) -> AIMessage:
-    """Let the model request the retrieval tool without executing that request."""
+    """Let the model request an available tool without executing it."""
 
     if not question.strip():
         raise ValueError("question must not be blank")
@@ -97,6 +104,7 @@ def request_and_execute_tool(
     available_tools = tool_registry or {
         search_procurement_rules.name: search_procurement_rules,
         get_case_facts.name: get_case_facts,
+        search_government_awards.name: search_government_awards,
     }
     requested_tool = available_tools.get(tool_call["name"])
     if requested_tool is None:
@@ -130,13 +138,19 @@ def tool_message_from_result(result: ToolExecutionResult) -> ToolMessage:
         raise ValueError("a tool call is required to create a ToolMessage")
 
     output = result.output
-    if isinstance(output, BaseModel):
-        serialized_output: Any = output.model_dump(mode="json")
-    else:
+    if output is None:
+        serialized_output: Any = []
+    elif isinstance(output, BaseModel):
+        serialized_output = output.model_dump(mode="json")
+    elif isinstance(output, list):
         serialized_output = [
             item.model_dump(mode="json")
+            if isinstance(item, BaseModel)
+            else item
             for item in (output or [])
         ]
+    else:
+        serialized_output = output
 
     observation = {
         "executed": result.executed,
@@ -219,6 +233,15 @@ def print_execution_result(result: ToolExecutionResult) -> None:
         print("Available documents:")
         for document in result.output.available_documents:
             print(f"- {document.title}")
+    elif isinstance(result.output, dict):
+        structured = result.output.get("structuredContent") or {}
+        awards = structured.get("results") or []
+        print("Government award results:")
+        for rank, award in enumerate(awards, start=1):
+            print(
+                f"{rank}. {award.get('Award ID') or 'N/A'} — "
+                f"{award.get('Recipient Name') or 'N/A'}"
+            )
     else:
         print("Retrieval results:")
         for rank, retrieval in enumerate(result.output or [], start=1):

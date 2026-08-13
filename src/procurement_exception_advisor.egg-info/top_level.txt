@@ -6,3 +6,5 @@ mcp
 models
 rag
 ui
+usaspending_api_test
+usaspending_mcp_discovery
