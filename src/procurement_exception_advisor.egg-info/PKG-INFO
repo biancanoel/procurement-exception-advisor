@@ -5,9 +5,11 @@ Summary: Agentic decision support for emergency and sole-source procurement exce
 Requires-Python: >=3.11
 Requires-Dist: chromadb<2,>=1
 Requires-Dist: langchain-openai<2,>=1
+Requires-Dist: langgraph<2,>=1
 Requires-Dist: mcp<3,>=2
 Requires-Dist: openai<3,>=2
 Requires-Dist: pydantic<3.0,>=2.7
 Requires-Dist: pypdf<7,>=6
+Requires-Dist: python-dotenv<2,>=1
 Provides-Extra: dev
 Requires-Dist: pytest<10,>=8; extra == "dev"

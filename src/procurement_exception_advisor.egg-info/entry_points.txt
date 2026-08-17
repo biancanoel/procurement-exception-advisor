@@ -1,4 +1,5 @@
 [console_scripts]
+ask-procurement-graph = rag.graph_cli:main
 ask-procurement-policy = rag.answerer:main
 get-case-facts = rag.case_tool_demo:main
 index-procurement-policies = rag.retriever:index_main

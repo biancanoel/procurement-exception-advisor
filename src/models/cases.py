@@ -88,6 +88,8 @@ class ExpectedRecommendation(StrictModel):
 
 
 class CriterionAssessment(StrictModel):
+    """This is the model for expected outcome in the mock case dataset. This is 
+    not the application output model (see models.assessment.CriterionResult) """
     criterion_id: str = Field(min_length=1)
     criterion: str = Field(min_length=1)
     status: EvidenceStatus

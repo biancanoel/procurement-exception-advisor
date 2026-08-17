@@ -44,7 +44,8 @@ class EvidenceReference(StrictModel):
 
 class CriterionResult(StrictModel):
     """The completed assessment for one emergency criterion.
-      Stores the agen't conclusion for each checklist item"""
+      Stores the agen't conclusion for each checklist item
+      This is the active application assessment model"""
 
     criterion_id: str = Field(
         min_length=1,
