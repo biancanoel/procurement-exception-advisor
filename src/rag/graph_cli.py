@@ -49,11 +49,6 @@ def print_result(result: dict) -> None:
     if final_response is None:
         raise RuntimeError("graph ended without a final model response")
 
-    assessment = result.get("assessment")
-    if assessment is not None:
-        print(f"Emergency criteria evaluated: {len(assessment.criterion_results)}")
-        for criterion in assessment.criterion_results:
-            print(f"- {criterion.criterion_id}: {criterion.status.value}")
     print(f"Final response:\n{final_response.content}")
 
 

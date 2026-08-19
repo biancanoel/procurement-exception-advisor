@@ -135,6 +135,75 @@ class CriterionResult(StrictModel):
         return self
 
 
+class EmergencyVerification(StrictModel):
+    """Gate determination for whether an emergency situation exists."""
+
+    case_id: str = Field(pattern=r"^EM-[0-9]{3}$")
+
+    emergency_is_verified: bool | None = Field(
+        description=(
+            "True only when all three criteria are supported; false only "
+            "when at least one criterion has an affirmative adverse result; "
+            "null when any material criterion remains unresolved without an "
+            "affirmative adverse result."
+        )
+    )
+
+    criterion_results: list[CriterionResult] = Field(
+        min_length=3,
+        max_length=3,
+    )
+
+    rationale: str = Field(min_length=1)
+
+    confidence: float = Field(ge=0.0, le=1.0)
+
+    source_ids_used: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def reconcile_determination_with_criterion_results(
+        self,
+    ) -> EmergencyVerification:
+        """Derive the gate result from the model's criterion-level judgments."""
+
+        criterion_ids = [
+            result.criterion_id
+            for result in self.criterion_results
+        ]
+        if len(criterion_ids) != len(set(criterion_ids)):
+            raise ValueError(
+                "criterion_results contains duplicate criterion IDs."
+            )
+
+        adverse_statuses = {
+            CriterionStatus.NOT_SUPPORTED,
+            CriterionStatus.CONTRADICTED,
+        }
+        statuses = {
+            result.status
+            for result in self.criterion_results
+        }
+
+        if statuses.intersection(adverse_statuses):
+            determination: bool | None = False
+        elif all(
+            result.status == CriterionStatus.SUPPORTED
+            for result in self.criterion_results
+        ):
+            determination = True
+        else:
+            determination = None
+
+        # Pydantic validates assignments on this model. Set the reconciled
+        # summary directly to avoid recursively running this model validator.
+        object.__setattr__(
+            self,
+            "emergency_is_verified",
+            determination,
+        )
+        return self
+
+
 class AuditRisk(StrictModel):
     """A risk that may weaken the procurement file."""
 

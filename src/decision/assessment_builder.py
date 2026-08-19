@@ -1,6 +1,6 @@
 """Create initial emergency procurement assessments."""
 
-from decision.emergency_criteria import get_emergency_criteria
+from decision.emergency_criteria import get_procurement_criteria
 from models.assessment import (
     CriterionResult,
     EmergencyAssessment,
@@ -20,7 +20,7 @@ def create_initial_assessment(
           rationale="This criterion has not yet been evaluated.",
           confidence=0.0,
       )
-      for criterion in get_emergency_criteria()
+      for criterion in get_procurement_criteria()
   ]
   return EmergencyAssessment(
      case_id = case.case_id,

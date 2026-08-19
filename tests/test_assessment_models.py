@@ -6,10 +6,45 @@ from pydantic import ValidationError
 from models.assessment import (
     CriterionResult,
     EmergencyAssessment,
+    EmergencyVerification,
     EvidenceReference,
     FinalRecommendation,
 )
 from models.criteria import CriterionStatus
+
+
+VERIFICATION_IDS = (
+    "unexpected_event",
+    "immediate_harm",
+    "competition_impracticable",
+)
+
+
+def verification_result(
+    criterion_id: str,
+    status: CriterionStatus,
+) -> CriterionResult:
+    kwargs = {}
+    if status == CriterionStatus.NOT_SUPPORTED:
+        kwargs["supporting_evidence"] = [
+            EvidenceReference(
+                source_id="DOC-001",
+                source_type="case_document",
+                description="Affirmative evidence that the criterion fails.",
+            )
+        ]
+    return CriterionResult(
+        criterion_id=criterion_id,
+        status=status,
+        rationale=f"Rationale for {criterion_id}.",
+        missing_evidence=(
+            ["Material evidence"]
+            if status == CriterionStatus.NOT_EVALUATED
+            else []
+        ),
+        confidence=0.9 if status == CriterionStatus.SUPPORTED else 0.4,
+        **kwargs,
+    )
 
 
 def test_criterion_result_accepts_valid_data() -> None:
@@ -24,6 +59,109 @@ def test_criterion_result_accepts_valid_data() -> None:
 
     assert result.criterion_id == "immediate_harm"
     assert result.status == CriterionStatus.SUPPORTED
+
+
+def test_emergency_verification_accepts_supported_yes_result() -> None:
+    verification = EmergencyVerification(
+        case_id="EM-001",
+        emergency_is_verified=True,
+        criterion_results=[
+            verification_result(criterion_id, CriterionStatus.SUPPORTED)
+            for criterion_id in VERIFICATION_IDS
+        ],
+        rationale="All three emergency elements are affirmatively supported.",
+        confidence=0.9,
+    )
+
+    assert verification.emergency_is_verified is True
+    assert len(verification.criterion_results) == 3
+
+
+def test_emergency_verification_accepts_affirmative_no_result() -> None:
+    results = [
+        verification_result(criterion_id, CriterionStatus.SUPPORTED)
+        for criterion_id in VERIFICATION_IDS
+    ]
+    results[-1] = verification_result(
+        "competition_impracticable",
+        CriterionStatus.NOT_SUPPORTED,
+    )
+
+    verification = EmergencyVerification(
+        case_id="EM-001",
+        emergency_is_verified=False,
+        criterion_results=results,
+        rationale="Competition remains practical, so no emergency exception exists.",
+        confidence=0.85,
+    )
+
+    assert verification.emergency_is_verified is False
+
+
+def test_emergency_verification_requires_unresolved_result_when_indeterminate() -> None:
+    verification = EmergencyVerification(
+        case_id="EM-001",
+        emergency_is_verified=None,
+        criterion_results=[
+            verification_result(
+                "unexpected_event",
+                CriterionStatus.NOT_EVALUATED,
+            ),
+            verification_result("immediate_harm", CriterionStatus.SUPPORTED),
+            verification_result(
+                "competition_impracticable",
+                CriterionStatus.SUPPORTED,
+            ),
+        ],
+        rationale="The event evidence is incomplete.",
+        confidence=0.4,
+    )
+
+    assert verification.emergency_is_verified is None
+
+
+def test_emergency_verification_reconciles_yes_with_unresolved_result() -> None:
+    verification = EmergencyVerification(
+        case_id="EM-001",
+        emergency_is_verified=True,
+        criterion_results=[
+            verification_result(
+                "unexpected_event",
+                CriterionStatus.NOT_EVALUATED,
+            ),
+            verification_result("immediate_harm", CriterionStatus.SUPPORTED),
+            verification_result(
+                "competition_impracticable",
+                CriterionStatus.SUPPORTED,
+            ),
+        ],
+        rationale="The record is incomplete.",
+        confidence=0.4,
+    )
+
+    assert verification.emergency_is_verified is None
+
+
+def test_emergency_verification_reconciles_false_without_adverse_result() -> None:
+    verification = EmergencyVerification(
+        case_id="EM-005",
+        emergency_is_verified=False,
+        criterion_results=[
+            verification_result(
+                "unexpected_event",
+                CriterionStatus.PARTIALLY_SUPPORTED,
+            ),
+            verification_result("immediate_harm", CriterionStatus.SUPPORTED),
+            verification_result(
+                "competition_impracticable",
+                CriterionStatus.PARTIALLY_SUPPORTED,
+            ),
+        ],
+        rationale="Material evidence remains unresolved.",
+        confidence=0.5,
+    )
+
+    assert verification.emergency_is_verified is None
 
 
 def test_criterion_result_rejects_invalid_confidence() -> None:

@@ -4,7 +4,7 @@ from models.criteria import (
     EmergencyCriterion,
     EvidenceType,
 )
-EMERGENCY_CRITERIA: tuple[EmergencyCriterion, ...] = (
+PROCUREMENT_CRITERIA: tuple[EmergencyCriterion, ...] = (
     EmergencyCriterion(
         criterion_id="purchase_classification",
         name="Purchase classification",
@@ -508,16 +508,63 @@ EMERGENCY_CRITERIA: tuple[EmergencyCriterion, ...] = (
 )
 
 
+EMERGENCY_VERIFICATION_CRITERION_IDS = (
+    "unexpected_event",
+    "immediate_harm",
+    "competition_impracticable",
+)
+
+AUDIT_READINESS_CRITERION_IDS = (
+    "purchase_classification",
+    "threshold_and_funding",
+    "limited_scope",
+    "vendor_selection",
+    "price_reasonableness",
+    "approval_authority",
+    "remaining_compliance_requirements",
+    "documentation_complete",
+    "post_facto_formalization",
+    "necessary_response",
+)
+
+_CRITERIA_BY_ID = {
+    criterion.criterion_id: criterion
+    for criterion in PROCUREMENT_CRITERIA
+}
+
+EMERGENCY_CRITERIA = tuple(
+    _CRITERIA_BY_ID[criterion_id]
+    for criterion_id in EMERGENCY_VERIFICATION_CRITERION_IDS
+)
+
+AUDIT_READINESS_CRITERIA = tuple(
+    _CRITERIA_BY_ID[criterion_id]
+    for criterion_id in AUDIT_READINESS_CRITERION_IDS
+)
+
+
 def get_emergency_criteria() -> tuple[EmergencyCriterion, ...]:
-    """Return the ordered emergency procurement criteria."""
+    """Return the three criteria that verify an emergency exists."""
 
     return EMERGENCY_CRITERIA
+
+
+def get_audit_readiness_criteria() -> tuple[EmergencyCriterion, ...]:
+    """Return the ten criteria used to evaluate audit readiness."""
+
+    return AUDIT_READINESS_CRITERIA
+
+
+def get_procurement_criteria() -> tuple[EmergencyCriterion, ...]:
+    """Return all criteria in two-stage workflow order."""
+
+    return EMERGENCY_CRITERIA + AUDIT_READINESS_CRITERIA
 
 
 def get_emergency_criterion(
     criterion_id: str,
 ) -> EmergencyCriterion:
-    """Return one criterion by its identifier."""
+    """Return one emergency-verification criterion by its identifier."""
 
     for criterion in EMERGENCY_CRITERIA:
         if criterion.criterion_id == criterion_id:
@@ -526,6 +573,33 @@ def get_emergency_criterion(
     raise KeyError(
         f"Unknown emergency criterion: {criterion_id}"
     )
+
+
+def get_audit_readiness_criterion(
+    criterion_id: str,
+) -> EmergencyCriterion:
+    """Return one audit-readiness criterion by its identifier."""
+
+    for criterion in AUDIT_READINESS_CRITERIA:
+        if criterion.criterion_id == criterion_id:
+            return criterion
+
+    raise KeyError(
+        f"Unknown audit-readiness criterion: {criterion_id}"
+    )
+
+
+def get_procurement_criterion(
+    criterion_id: str,
+) -> EmergencyCriterion:
+    """Return any configured procurement criterion by its identifier."""
+
+    try:
+        return _CRITERIA_BY_ID[criterion_id]
+    except KeyError as error:
+        raise KeyError(
+            f"Unknown procurement criterion: {criterion_id}"
+        ) from error
 
 
 def get_required_emergency_criteria(
@@ -538,7 +612,20 @@ def get_required_emergency_criteria(
         if criterion.required_for_recommendation
     )
 
+
 def get_emergency_criteria_count() -> int:
-    """Return the number of configured emergency criteria."""
+    """Return the number of emergency-verification criteria."""
 
     return len(EMERGENCY_CRITERIA)
+
+
+def get_audit_readiness_criteria_count() -> int:
+    """Return the number of audit-readiness criteria."""
+
+    return len(AUDIT_READINESS_CRITERIA)
+
+
+def get_procurement_criteria_count() -> int:
+    """Return the total number of criteria across both stages."""
+
+    return len(PROCUREMENT_CRITERIA)

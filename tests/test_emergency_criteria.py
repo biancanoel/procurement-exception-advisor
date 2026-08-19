@@ -3,21 +3,29 @@
 import pytest
 
 from decision.emergency_criteria import (
+    get_audit_readiness_criteria,
+    get_audit_readiness_criterion,
+    get_audit_readiness_criteria_count,
     get_emergency_criteria,
     get_emergency_criterion,
     get_required_emergency_criteria,
-    get_emergency_criteria_count
+    get_emergency_criteria_count,
+    get_procurement_criteria,
+    get_procurement_criterion,
+    get_procurement_criteria_count,
 )
 from models.criteria import EmergencyCriterion
 
 
-EXPECTED_CRITERION_IDS = [
-    "purchase_classification",
-    "threshold_and_funding",
+EXPECTED_EMERGENCY_CRITERION_IDS = [
     "unexpected_event",
     "immediate_harm",
     "competition_impracticable",
-    "necessary_response",
+]
+
+EXPECTED_AUDIT_CRITERION_IDS = [
+    "purchase_classification",
+    "threshold_and_funding",
     "limited_scope",
     "vendor_selection",
     "price_reasonableness",
@@ -25,6 +33,7 @@ EXPECTED_CRITERION_IDS = [
     "remaining_compliance_requirements",
     "documentation_complete",
     "post_facto_formalization",
+    "necessary_response",
 ]
 
 
@@ -36,11 +45,39 @@ def test_returns_all_emergency_criteria_in_order() -> None:
     assert [
         criterion.criterion_id
         for criterion in criteria
-    ] == EXPECTED_CRITERION_IDS
+    ] == EXPECTED_EMERGENCY_CRITERION_IDS
+
+
+def test_returns_all_audit_readiness_criteria_in_order() -> None:
+    criteria = get_audit_readiness_criteria()
+
+    assert len(criteria) == get_audit_readiness_criteria_count() == 10
+    assert [
+        criterion.criterion_id
+        for criterion in criteria
+    ] == EXPECTED_AUDIT_CRITERION_IDS
+
+
+def test_procurement_criteria_partition_covers_all_thirteen() -> None:
+    emergency_ids = {
+        criterion.criterion_id for criterion in get_emergency_criteria()
+    }
+    audit_ids = {
+        criterion.criterion_id for criterion in get_audit_readiness_criteria()
+    }
+    all_ids = [
+        criterion.criterion_id for criterion in get_procurement_criteria()
+    ]
+
+    assert emergency_ids.isdisjoint(audit_ids)
+    assert get_procurement_criteria_count() == 13
+    assert all_ids == (
+        EXPECTED_EMERGENCY_CRITERION_IDS + EXPECTED_AUDIT_CRITERION_IDS
+    )
 
 
 def test_all_criteria_are_valid_models() -> None:
-    criteria = get_emergency_criteria()
+    criteria = get_procurement_criteria()
 
     assert all(
         isinstance(criterion, EmergencyCriterion)
@@ -49,7 +86,7 @@ def test_all_criteria_are_valid_models() -> None:
 
 
 def test_criterion_ids_are_unique() -> None:
-    criteria = get_emergency_criteria()
+    criteria = get_procurement_criteria()
 
     criterion_ids = [
         criterion.criterion_id
@@ -60,7 +97,7 @@ def test_criterion_ids_are_unique() -> None:
 
 
 def test_each_criterion_has_questions_and_risk() -> None:
-    for criterion in get_emergency_criteria():
+    for criterion in get_procurement_criteria():
         assert criterion.questions_to_answer
         assert criterion.risk_if_missing
         assert criterion.name
@@ -83,6 +120,20 @@ def test_get_emergency_criterion_rejects_unknown_id() -> None:
         get_emergency_criterion("does_not_exist")
 
 
+def test_stage_specific_lookup_rejects_criterion_from_other_stage() -> None:
+    with pytest.raises(KeyError, match="Unknown emergency criterion"):
+        get_emergency_criterion("approval_authority")
+
+    assert (
+        get_audit_readiness_criterion("approval_authority").name
+        == "Required authority and approvals"
+    )
+    assert (
+        get_procurement_criterion("approval_authority").name
+        == "Required authority and approvals"
+    )
+
+
 def test_required_criteria_are_subset_of_all_criteria() -> None:
     all_ids = {
         criterion.criterion_id
@@ -99,7 +150,7 @@ def test_required_criteria_are_subset_of_all_criteria() -> None:
 
 
 def test_approval_authority_does_not_allow_partial_support() -> None:
-    criterion = get_emergency_criterion(
+    criterion = get_audit_readiness_criterion(
         "approval_authority"
     )
 

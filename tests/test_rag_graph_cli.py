@@ -83,6 +83,26 @@ def test_main_prints_normal_response_without_tool(monkeypatch, capsys) -> None:
     assert "No tool was needed." in output
 
 
+def test_print_result_does_not_duplicate_structured_finalization(capsys) -> None:
+    print_result(
+        {
+            "messages": [
+                AIMessage(
+                    content=(
+                        "## Audit readiness\n"
+                        "The file is audit-ready.\n"
+                        "- approval_authority: supported"
+                    )
+                )
+            ],
+        }
+    )
+
+    output = capsys.readouterr().out
+    assert output.count("## Audit readiness") == 1
+    assert "approval_authority: supported" in output
+
+
 def test_run_question_rejects_blank_question() -> None:
     with pytest.raises(ValueError, match="must not be blank"):
         run_question("   ")

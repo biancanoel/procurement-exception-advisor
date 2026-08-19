@@ -2,7 +2,7 @@
 
 from data.case_loader import load_case
 from decision.assessment_builder import create_initial_assessment
-from decision.emergency_criteria import get_emergency_criteria, get_emergency_criteria_count
+from decision.emergency_criteria import get_procurement_criteria
 from models.assessment import FinalRecommendation
 from models.criteria import CriterionStatus
 
@@ -19,7 +19,7 @@ def test_builder_creates_result_for_every_criterion() -> None:
     case = load_case("EM-001")
 
     assessment = create_initial_assessment(case)
-    criteria = get_emergency_criteria()
+    criteria = get_procurement_criteria()
 
     assert len(assessment.criterion_results) == len(criteria)
 
@@ -31,7 +31,7 @@ def test_builder_preserves_criterion_order() -> None:
 
     expected_ids = [
         criterion.criterion_id
-        for criterion in get_emergency_criteria()
+        for criterion in get_procurement_criteria()
     ]
 
     actual_ids = [
@@ -98,4 +98,4 @@ def test_builder_works_for_every_mock_case() -> None:
         assessment = create_initial_assessment(case)
 
         assert assessment.case_id == case_id
-        assert len(assessment.criterion_results) == len(get_emergency_criteria())
+        assert len(assessment.criterion_results) == len(get_procurement_criteria())
