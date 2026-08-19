@@ -31,12 +31,15 @@ def search_procurement_rules(
     )
 
 
-@tool
-def get_case_facts(case_id: str) -> EmergencyCaseInput:
+@tool(response_format="content_and_artifact")
+def get_case_facts(
+    case_id: str,
+) -> tuple[EmergencyCaseInput, EmergencyCaseInput]:
     """Load the known, unevaluated facts for an emergency procurement case."""
 
     try:
-        return load_case(case_id)
+        case = load_case(case_id)
+        return case, case
     except (CaseFileNotFoundError, ValueError) as error:
         raise ToolException(str(error)) from error
 

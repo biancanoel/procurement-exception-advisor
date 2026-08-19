@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from enum import StrEnum
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from models.criteria import CriterionStatus
 
@@ -98,6 +98,41 @@ class CriterionResult(StrictModel):
             )
 
         return values
+
+    @model_validator(mode="after")
+    def resolved_status_must_match_evidence(
+        self,
+    ) -> CriterionResult:
+        """Keep resolved statuses consistent with their evidentiary basis."""
+
+        if self.status == CriterionStatus.SUPPORTED:
+            unresolved_fields: list[str] = []
+            if self.conflicting_evidence:
+                unresolved_fields.append("conflicting_evidence")
+            if self.requires_human_review:
+                unresolved_fields.append("requires_human_review")
+            if self.human_review_reason:
+                unresolved_fields.append("human_review_reason")
+
+            if not unresolved_fields:
+                return self
+            fields = ", ".join(unresolved_fields)
+            raise ValueError(
+                "A supported criterion cannot contain material unresolved "
+                f"fields: {fields}. Use an unresolved status or clear them."
+            )
+
+        if (
+            self.status == CriterionStatus.NOT_SUPPORTED
+            and not self.supporting_evidence
+            and not self.conflicting_evidence
+        ):
+            raise ValueError(
+                "A not-supported criterion requires affirmative adverse "
+                "evidence. Missing evidence alone requires an unresolved "
+                "status."
+            )
+        return self
 
 
 class AuditRisk(StrictModel):

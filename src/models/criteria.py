@@ -29,7 +29,14 @@ class StrictModel(BaseModel):
 
 
 class CriterionStatus(StrEnum):
-    """Possible assessment results for an emergency criterion."""
+    """Resolution state of one emergency-procurement criterion.
+
+    SUPPORTED and NOT_SUPPORTED are substantive, resolved determinations:
+    favorable and adverse, respectively. PARTIALLY_SUPPORTED and NOT_EVALUATED
+    are unresolved because the available record does not support a definitive
+    determination. NOT_APPLICABLE and CONTRADICTED are resolved, while
+    HUMAN_REVIEW_REQUIRED remains unresolved.
+    """
 
     NOT_EVALUATED = "not_evaluated"
     SUPPORTED = "supported"
@@ -123,5 +130,4 @@ class EmergencyCriterion(BaseModel):
             )
 
         return values
-
 
