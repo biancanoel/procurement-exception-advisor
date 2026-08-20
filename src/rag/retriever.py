@@ -86,7 +86,7 @@ class OpenAIEmbeddingProvider:
 
 
 class RetrievalResult(BaseModel):
-    """A procurement-policy chunk returned by semantic retrieval."""
+    """A procurement-policy chunk returned by semantic retrieval out of ChromaDB."""
 
     model_config = ConfigDict(extra="forbid")
 

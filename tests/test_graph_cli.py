@@ -5,7 +5,7 @@ import sys
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
-from rag.graph_cli import main, print_result, run_question
+from graph.cli import main, print_result, run_question
 
 
 def test_run_question_invokes_existing_graph(monkeypatch) -> None:
@@ -22,8 +22,8 @@ def test_run_question_invokes_existing_graph(monkeypatch) -> None:
             captured.update(state)
             return expected
 
-    monkeypatch.setattr("rag.graph_cli.build_graph", lambda: FakeGraph())
-    monkeypatch.setattr("rag.graph_cli.load_dotenv", fake_load_dotenv)
+    monkeypatch.setattr("graph.cli.build_graph", lambda: FakeGraph())
+    monkeypatch.setattr("graph.cli.load_dotenv", fake_load_dotenv)
 
     result = run_question("Find similar emergency awards")
 
@@ -71,7 +71,7 @@ def test_print_result_shows_tool_and_final_response(capsys) -> None:
 def test_main_prints_normal_response_without_tool(monkeypatch, capsys) -> None:
     result = {"messages": [AIMessage(content="No tool was needed.")]}
     monkeypatch.setattr(
-        "rag.graph_cli.run_question",
+        "graph.cli.run_question",
         lambda _question: result,
     )
     monkeypatch.setattr(sys, "argv", ["ask-procurement-graph", "Hello"])

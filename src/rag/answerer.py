@@ -1,5 +1,11 @@
 """Grounded question answering over retrieved procurement-policy chunks."""
 
+# This module supports standalone procurement-policy Q&A through the
+# `ask-procurement-policy` command. It is separate from the end-to-end LangGraph
+# emergency-case assessment workflow. If the project no longer needs a
+# standalone policy-research interface, this module and its CLI may be removed
+# after shared model configuration is moved elsewhere.
+
 from __future__ import annotations
 
 import argparse

@@ -22,8 +22,8 @@ from models.assessment import (
 )
 from models.cases import EmergencyCaseInput
 from models.criteria import CriterionStatus
-import rag.graph as graph_module
-from rag.graph import (
+import graph.workflow as graph_module
+from graph.workflow import (
     AUDIT_READINESS_STAGE,
     EMERGENCY_VERIFICATION_STAGE,
     MAX_RESEARCH_ROUNDS,

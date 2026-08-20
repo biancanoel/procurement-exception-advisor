@@ -1,4 +1,4 @@
-"""Command-line entry point for the LangGraph procurement tool loop."""
+"""Command-line entry point for the LangGraph procurement workflow."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import argparse
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from dotenv import load_dotenv
 
-from rag.graph import build_graph
+from graph.workflow import build_graph
 
 
 def run_question(question: str) -> dict:

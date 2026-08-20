@@ -115,6 +115,7 @@ class ProcurementGraphState(MessagesState):
     """Shared messages and state for the two-stage assessment workflow."""
 
     emergency_verification: EmergencyVerification | None
+    # why is this duplicated
     audit_readiness: EmergencyAssessment | None
     assessment: EmergencyAssessment | None
     assessment_stage: str
