@@ -1,6 +1,6 @@
 """Offline tests for the two-stage LangGraph assessment workflow."""
 
-from typing import Any
+from typing import Any, get_type_hints
 
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
@@ -14,8 +14,9 @@ from decision.emergency_criteria import (
 )
 from models.assessment import (
     AuditRisk,
+    AuditReadinessAssessment,
     CriterionResult,
-    EmergencyAssessment,
+    EmergencyProcurementAssessment,
     EmergencyVerification,
     EvidenceReference,
     FinalRecommendation,
@@ -26,6 +27,8 @@ import graph.workflow as graph_module
 from graph.workflow import (
     AUDIT_READINESS_STAGE,
     EMERGENCY_VERIFICATION_STAGE,
+    AuditReadinessNodeUpdate,
+    EmergencyVerificationNodeUpdate,
     MAX_RESEARCH_ROUNDS,
     audit_readiness,
     build_graph,
@@ -74,7 +77,7 @@ class FakeChatModel:
         self,
         responses: list[AIMessage],
         structured_responses: list[
-            EmergencyVerification | EmergencyAssessment | Exception
+            EmergencyVerification | AuditReadinessAssessment | Exception
         ] | None = None,
     ) -> None:
         self.bound_tools: list[Any] = []
@@ -191,7 +194,7 @@ def audit_assessment(
     *,
     unresolved_id: str | None = None,
     case_id: str = "EM-001",
-) -> EmergencyAssessment:
+) -> AuditReadinessAssessment:
     results = [
         criterion_result(
             criterion.criterion_id,
@@ -208,7 +211,7 @@ def audit_assessment(
         )
         for criterion in AUDIT_READINESS_CRITERIA
     ]
-    return EmergencyAssessment(
+    return AuditReadinessAssessment(
         case_id=case_id,
         recommendation=(
             FinalRecommendation.ADDITIONAL_EVIDENCE_REQUIRED
@@ -288,6 +291,18 @@ def test_run_graph_rejects_blank_question() -> None:
         run_graph("   ", chat_model=FakeChatModel([]), tools=[example_lookup])
 
 
+def test_emergency_verification_uses_specific_node_update_type() -> None:
+    return_type = get_type_hints(emergency_verification)["return"]
+
+    assert return_type is EmergencyVerificationNodeUpdate
+    assert get_type_hints(EmergencyVerificationNodeUpdate) == {
+        "emergency_verification": EmergencyVerification | None,
+        "audit_readiness": type(None),
+        "assessment": EmergencyProcurementAssessment | None,
+        "assessment_stage": str,
+    }
+
+
 def test_emergency_verification_evaluates_only_three_criteria() -> None:
     expected = verification(True)
     model = FakeChatModel([], [expected])
@@ -295,6 +310,9 @@ def test_emergency_verification_evaluates_only_three_criteria() -> None:
     update = emergency_verification(state_with_case(), chat_model=model)
 
     assert update["emergency_verification"] is expected
+    assert isinstance(update["assessment"], EmergencyProcurementAssessment)
+    assert update["assessment"].emergency_verification is expected
+    assert update["assessment"].audit_readiness is None
     assert update["assessment_stage"] == EMERGENCY_VERIFICATION_STAGE
     assert len(expected.criterion_results) == 3
     assert model.structured_schemas == [EmergencyVerification]
@@ -311,12 +329,16 @@ def test_audit_readiness_evaluates_only_remaining_ten_and_combines_results() -> 
     expected = audit_assessment()
     model = FakeChatModel([], [expected])
     state = state_with_case()
-    state["emergency_verification"] = verification(True)
+    verified = verification(True)
+    state["emergency_verification"] = verified
 
     update = audit_readiness(state, chat_model=model)
 
     assert update["audit_readiness"] is expected
     assert len(expected.criterion_results) == 10
+    assert isinstance(update["assessment"], EmergencyProcurementAssessment)
+    assert update["assessment"].emergency_verification is verified
+    assert update["assessment"].audit_readiness is expected
     assert len(update["assessment"].criterion_results) == 13
     assert [
         result.criterion_id for result in update["assessment"].criterion_results
@@ -324,10 +346,21 @@ def test_audit_readiness_evaluates_only_remaining_ten_and_combines_results() -> 
         criterion.criterion_id
         for criterion in (*EMERGENCY_CRITERIA, *AUDIT_READINESS_CRITERIA)
     ]
-    assert model.structured_schemas == [EmergencyAssessment]
+    assert model.structured_schemas == [AuditReadinessAssessment]
     prompt = model.structured_inputs[0][1][1]
     assert "approval_authority" in prompt
     assert "emergency_is_verified" in prompt
+
+
+def test_audit_readiness_uses_specific_node_update_type() -> None:
+    return_type = get_type_hints(audit_readiness)["return"]
+
+    assert return_type is AuditReadinessNodeUpdate
+    assert get_type_hints(AuditReadinessNodeUpdate) == {
+        "audit_readiness": AuditReadinessAssessment | None,
+        "assessment": EmergencyProcurementAssessment | None,
+        "assessment_stage": str,
+    }
 
 
 def test_structured_validation_error_is_returned_to_model_for_retry() -> None:
@@ -636,7 +669,11 @@ def test_verified_emergency_runs_audit_readiness(monkeypatch) -> None:
         audit_calls += 1
         return {
             "audit_readiness": resolved_audit,
-            "assessment": resolved_audit,
+            "assessment": EmergencyProcurementAssessment(
+                case_id="EM-001",
+                emergency_verification=state["emergency_verification"],
+                audit_readiness=resolved_audit,
+            ),
             "assessment_stage": AUDIT_READINESS_STAGE,
         }
 
@@ -701,7 +738,11 @@ def test_verification_gap_research_returns_to_verification(monkeypatch) -> None:
     def fake_audit(state: dict[str, Any], **_: Any) -> dict[str, Any]:
         return {
             "audit_readiness": resolved_audit,
-            "assessment": resolved_audit,
+            "assessment": EmergencyProcurementAssessment(
+                case_id="EM-001",
+                emergency_verification=state["emergency_verification"],
+                audit_readiness=resolved_audit,
+            ),
             "assessment_stage": AUDIT_READINESS_STAGE,
         }
 
@@ -744,7 +785,11 @@ def test_audit_gap_research_returns_to_audit(monkeypatch) -> None:
         current = next(audits)
         return {
             "audit_readiness": current,
-            "assessment": current,
+            "assessment": EmergencyProcurementAssessment(
+                case_id="EM-001",
+                emergency_verification=state["emergency_verification"],
+                audit_readiness=current,
+            ),
             "assessment_stage": AUDIT_READINESS_STAGE,
         }
 

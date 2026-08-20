@@ -4,8 +4,9 @@ import pytest
 from pydantic import ValidationError
 
 from models.assessment import (
+    AuditReadinessAssessment,
     CriterionResult,
-    EmergencyAssessment,
+    EmergencyProcurementAssessment,
     EmergencyVerification,
     EvidenceReference,
     FinalRecommendation,
@@ -17,6 +18,19 @@ VERIFICATION_IDS = (
     "unexpected_event",
     "immediate_harm",
     "competition_impracticable",
+)
+
+AUDIT_IDS = (
+    "purchase_classification",
+    "threshold_and_funding",
+    "limited_scope",
+    "vendor_selection",
+    "price_reasonableness",
+    "approval_authority",
+    "remaining_compliance_requirements",
+    "documentation_complete",
+    "post_facto_formalization",
+    "necessary_response",
 )
 
 
@@ -282,8 +296,8 @@ def test_affirmative_adverse_evidence_can_support_negative_finding() -> None:
     assert result.missing_evidence == ["Written procurement file determination"]
 
 
-def test_assessment_accepts_valid_data() -> None:
-    assessment = EmergencyAssessment(
+def test_audit_readiness_assessment_accepts_ten_results() -> None:
+    assessment = AuditReadinessAssessment(
         case_id="EM-001",
         recommendation=(
             FinalRecommendation.SUFFICIENTLY_SUPPORTED
@@ -294,20 +308,21 @@ def test_assessment_accepts_valid_data() -> None:
         classification="Emergency public project",
         criterion_results=[
             CriterionResult(
-                criterion_id="immediate_harm",
+                criterion_id=criterion_id,
                 status=CriterionStatus.SUPPORTED,
-                rationale="Wastewater may enter a storm drain.",
+                rationale=f"The record supports {criterion_id}.",
                 confidence=0.98,
             )
+            for criterion_id in AUDIT_IDS
         ],
         overall_confidence=0.90,
     )
 
     assert assessment.case_id == "EM-001"
-    assert len(assessment.criterion_results) == 1
+    assert len(assessment.criterion_results) == 10
 
 
-def test_assessment_rejects_duplicate_criterion_ids() -> None:
+def test_audit_readiness_rejects_duplicate_criterion_ids() -> None:
     duplicate_result = CriterionResult(
         criterion_id="immediate_harm",
         status=CriterionStatus.SUPPORTED,
@@ -319,7 +334,7 @@ def test_assessment_rejects_duplicate_criterion_ids() -> None:
         ValidationError,
         match="duplicate criterion IDs",
     ):
-        EmergencyAssessment(
+        AuditReadinessAssessment(
             case_id="EM-001",
             recommendation=(
                 FinalRecommendation.SUFFICIENTLY_SUPPORTED
@@ -329,6 +344,95 @@ def test_assessment_rejects_duplicate_criterion_ids() -> None:
             criterion_results=[
                 duplicate_result,
                 duplicate_result,
+                *[
+                    CriterionResult(
+                        criterion_id=criterion_id,
+                        status=CriterionStatus.SUPPORTED,
+                        rationale="Supported.",
+                        confidence=0.9,
+                    )
+                    for criterion_id in AUDIT_IDS[:8]
+                ],
             ],
             overall_confidence=0.9,
+        )
+
+
+def test_complete_assessment_nests_both_stage_results() -> None:
+    verification = EmergencyVerification(
+        case_id="EM-001",
+        emergency_is_verified=True,
+        criterion_results=[
+            verification_result(criterion_id, CriterionStatus.SUPPORTED)
+            for criterion_id in VERIFICATION_IDS
+        ],
+        rationale="The emergency is verified.",
+        confidence=0.9,
+    )
+    audit = AuditReadinessAssessment(
+        case_id="EM-001",
+        recommendation=FinalRecommendation.SUFFICIENTLY_SUPPORTED,
+        executive_summary="The file is audit-ready.",
+        classification="Emergency procurement",
+        criterion_results=[
+            CriterionResult(
+                criterion_id=criterion_id,
+                status=CriterionStatus.SUPPORTED,
+                rationale="Supported.",
+                confidence=0.9,
+            )
+            for criterion_id in AUDIT_IDS
+        ],
+        overall_confidence=0.9,
+    )
+
+    assessment = EmergencyProcurementAssessment(
+        case_id="EM-001",
+        emergency_verification=verification,
+        audit_readiness=audit,
+    )
+
+    assert assessment.emergency_verification is verification
+    assert assessment.audit_readiness is audit
+    assert len(assessment.criterion_results) == 13
+
+
+def test_complete_assessment_rejects_audit_stage_without_verified_emergency() -> None:
+    rejected_results = [
+        verification_result(criterion_id, CriterionStatus.SUPPORTED)
+        for criterion_id in VERIFICATION_IDS
+    ]
+    rejected_results[0] = verification_result(
+        "unexpected_event",
+        CriterionStatus.NOT_SUPPORTED,
+    )
+    rejected = EmergencyVerification(
+        case_id="EM-001",
+        emergency_is_verified=False,
+        criterion_results=rejected_results,
+        rationale="The event was foreseeable.",
+        confidence=0.9,
+    )
+    audit = AuditReadinessAssessment(
+        case_id="EM-001",
+        recommendation=FinalRecommendation.SUFFICIENTLY_SUPPORTED,
+        executive_summary="The file is audit-ready.",
+        classification="Emergency procurement",
+        criterion_results=[
+            CriterionResult(
+                criterion_id=criterion_id,
+                status=CriterionStatus.SUPPORTED,
+                rationale="Supported.",
+                confidence=0.9,
+            )
+            for criterion_id in AUDIT_IDS
+        ],
+        overall_confidence=0.9,
+    )
+
+    with pytest.raises(ValidationError, match="requires a verified emergency"):
+        EmergencyProcurementAssessment(
+            case_id="EM-001",
+            emergency_verification=rejected,
+            audit_readiness=audit,
         )

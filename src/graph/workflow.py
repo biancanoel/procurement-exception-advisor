@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import os
 from collections.abc import Sequence
-from typing import Any
+from typing import Any, TypedDict
 
 from langchain_core.messages import (
     AIMessage,
@@ -25,8 +25,9 @@ from decision.emergency_criteria import (
     get_procurement_criterion,
 )
 from models.assessment import (
+    AuditReadinessAssessment,
     CriterionResult,
-    EmergencyAssessment,
+    EmergencyProcurementAssessment,
     EmergencyVerification,
     EvidenceReference,
     FinalRecommendation,
@@ -115,15 +116,31 @@ class ProcurementGraphState(MessagesState):
     """Shared messages and state for the two-stage assessment workflow."""
 
     emergency_verification: EmergencyVerification | None
-    # why is this duplicated
-    audit_readiness: EmergencyAssessment | None
-    assessment: EmergencyAssessment | None
+    audit_readiness: AuditReadinessAssessment | None
+    assessment: EmergencyProcurementAssessment | None
     assessment_stage: str
     unresolved_criteria: list[CriterionResult]
     research_rounds: int
     max_research_rounds: int
     gap_research_active: bool
     gap_research_tools_used: bool
+
+
+class EmergencyVerificationNodeUpdate(TypedDict):
+    """State fields written by the emergency_verification graph node."""
+
+    emergency_verification: EmergencyVerification | None
+    audit_readiness: None
+    assessment: EmergencyProcurementAssessment | None
+    assessment_stage: str
+
+
+class AuditReadinessNodeUpdate(TypedDict):
+    """State fields written by the audit_readiness graph node."""
+
+    audit_readiness: AuditReadinessAssessment | None
+    assessment: EmergencyProcurementAssessment | None
+    assessment_stage: str
 
 
 def create_chat_model() -> ChatOpenAI:
@@ -315,7 +332,7 @@ def emergency_verification(
     state: ProcurementGraphState,
     *,
     chat_model: Any | None = None,
-) -> dict[str, EmergencyVerification | EmergencyAssessment | str | None]:
+) -> EmergencyVerificationNodeUpdate:
     """Determine whether the facts establish an emergency procurement."""
 
     case = _case_from_messages(state["messages"])
@@ -360,7 +377,11 @@ def emergency_verification(
     return {
         "emergency_verification": verification,
         "audit_readiness": None,
-        "assessment": None,
+        "assessment": EmergencyProcurementAssessment(
+            case_id=verification.case_id,
+            emergency_verification=verification,
+            audit_readiness=None,
+        ),
         "assessment_stage": EMERGENCY_VERIFICATION_STAGE,
     }
 
@@ -369,7 +390,7 @@ def audit_readiness(
     state: ProcurementGraphState,
     *,
     chat_model: Any | None = None,
-) -> dict[str, EmergencyAssessment | str | None]:
+) -> AuditReadinessNodeUpdate:
     """Assess the audit readiness of a verified emergency procurement."""
 
     verification = state.get("emergency_verification")
@@ -390,7 +411,7 @@ def audit_readiness(
     model = chat_model or create_chat_model()
     audit = _invoke_structured_output(
         model=model,
-        schema=EmergencyAssessment,
+        schema=AuditReadinessAssessment,
         output_name="AuditReadiness",
         messages=[
             ("system", AUDIT_READINESS_PROMPT),
@@ -418,14 +439,14 @@ def audit_readiness(
     )
     audit.source_ids_used = _observed_source_ids(case, state["messages"])
 
-    combined = audit.model_copy(deep=True)
-    combined.criterion_results = [
-        *verification.criterion_results,
-        *audit.criterion_results,
-    ]
+    assessment = EmergencyProcurementAssessment(
+        case_id=case.case_id,
+        emergency_verification=verification,
+        audit_readiness=audit,
+    )
     return {
         "audit_readiness": audit,
-        "assessment": combined,
+        "assessment": assessment,
         "assessment_stage": AUDIT_READINESS_STAGE,
     }
 
@@ -655,7 +676,7 @@ _AUDIT_CONCLUSIONS = {
 
 def _render_audit_readiness(
     state: ProcurementGraphState,
-    audit: EmergencyAssessment,
+    audit: AuditReadinessAssessment,
 ) -> str:
     """Render the audit result and its existing outstanding checklist."""
 
@@ -758,12 +779,12 @@ def build_graph(
 
     def verify_emergency(
         state: ProcurementGraphState,
-    ) -> dict[str, EmergencyVerification | EmergencyAssessment | str | None]:
+    ) -> EmergencyVerificationNodeUpdate:
         return emergency_verification(state, chat_model=model)
 
     def assess_audit_readiness(
         state: ProcurementGraphState,
-    ) -> dict[str, EmergencyAssessment | str | None]:
+    ) -> AuditReadinessNodeUpdate:
         return audit_readiness(state, chat_model=model)
 
     builder = StateGraph(ProcurementGraphState)

@@ -2,8 +2,7 @@
 
 from data.case_loader import load_case
 from decision.assessment_builder import create_initial_assessment
-from decision.emergency_criteria import get_procurement_criteria
-from models.assessment import FinalRecommendation
+from decision.emergency_criteria import get_emergency_criteria
 from models.criteria import CriterionStatus
 
 
@@ -19,7 +18,7 @@ def test_builder_creates_result_for_every_criterion() -> None:
     case = load_case("EM-001")
 
     assessment = create_initial_assessment(case)
-    criteria = get_procurement_criteria()
+    criteria = get_emergency_criteria()
 
     assert len(assessment.criterion_results) == len(criteria)
 
@@ -31,7 +30,7 @@ def test_builder_preserves_criterion_order() -> None:
 
     expected_ids = [
         criterion.criterion_id
-        for criterion in get_procurement_criteria()
+        for criterion in get_emergency_criteria()
     ]
 
     actual_ids = [
@@ -64,26 +63,14 @@ def test_all_criteria_start_with_zero_confidence() -> None:
     )
 
 
-def test_initial_assessment_is_not_treated_as_final() -> None:
+def test_initial_assessment_is_indeterminate_and_has_no_audit_stage() -> None:
     case = load_case("EM-001")
 
     assessment = create_initial_assessment(case)
 
-    assert (
-        assessment.recommendation
-        == FinalRecommendation.HUMAN_REVIEW_REQUIRED
-    )
-
-    assert assessment.requires_human_review is True
-    assert assessment.overall_confidence == 0.0
-
-
-def test_initial_assessment_has_placeholder_classification() -> None:
-    case = load_case("EM-001")
-
-    assessment = create_initial_assessment(case)
-
-    assert assessment.classification == "Not yet classified"
+    assert assessment.emergency_verification.emergency_is_verified is None
+    assert assessment.emergency_verification.confidence == 0.0
+    assert assessment.audit_readiness is None
 
 
 def test_builder_works_for_every_mock_case() -> None:
@@ -98,4 +85,4 @@ def test_builder_works_for_every_mock_case() -> None:
         assessment = create_initial_assessment(case)
 
         assert assessment.case_id == case_id
-        assert len(assessment.criterion_results) == len(get_procurement_criteria())
+        assert len(assessment.criterion_results) == len(get_emergency_criteria())

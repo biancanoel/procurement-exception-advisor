@@ -227,9 +227,8 @@ class AuditRisk(StrictModel):
     recommended_action: str = Field(min_length=1)
 
 
-class EmergencyAssessment(StrictModel):
-    """Combines all criterion results into the final recommendation resulting in one 
-    complete structured assessment for one emergency request."""
+class AuditReadinessAssessment(StrictModel):
+    """Ten-criterion review of an emergency procurement file's readiness."""
 
     schema_version: str = "1.0"
 
@@ -244,7 +243,8 @@ class EmergencyAssessment(StrictModel):
     classification: str = Field(min_length=1)
 
     criterion_results: list[CriterionResult] = Field(
-        min_length=1,
+        min_length=10,
+        max_length=10,
     )
 
     audit_risks: list[AuditRisk] = Field(
@@ -292,4 +292,46 @@ class EmergencyAssessment(StrictModel):
                 "criterion_results contains duplicate criterion IDs."
             )
 
+        return results
+
+
+class EmergencyProcurementAssessment(StrictModel):
+    """Complete workflow result containing its two structured stages (emergency_verification + audit_readiness)."""
+
+    schema_version: str = "1.0"
+
+    case_id: str = Field(pattern=r"^EM-[0-9]{3}$")
+
+    emergency_verification: EmergencyVerification
+
+    audit_readiness: AuditReadinessAssessment | None = None
+
+    @model_validator(mode="after")
+    def stage_case_ids_and_routing_must_be_consistent(
+        self,
+    ) -> EmergencyProcurementAssessment:
+        """Keep nested stage results aligned with the workflow outcome."""
+
+        if self.emergency_verification.case_id != self.case_id:
+            raise ValueError(
+                "emergency_verification case_id must match assessment case_id."
+            )
+        if self.audit_readiness is not None:
+            if self.audit_readiness.case_id != self.case_id:
+                raise ValueError(
+                    "audit_readiness case_id must match assessment case_id."
+                )
+            if self.emergency_verification.emergency_is_verified is not True:
+                raise ValueError(
+                    "audit_readiness requires a verified emergency."
+                )
+        return self
+
+    @property
+    def criterion_results(self) -> list[CriterionResult]:
+        """Return available stage results in workflow order without copying state."""
+
+        results = list(self.emergency_verification.criterion_results)
+        if self.audit_readiness is not None:
+            results.extend(self.audit_readiness.criterion_results)
         return results
