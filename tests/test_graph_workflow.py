@@ -12,6 +12,31 @@ from decision.emergency_criteria import (
     AUDIT_READINESS_CRITERIA,
     EMERGENCY_CRITERIA,
 )
+import graph.emergency_verification_subagent as emergency_subagent_module
+import graph.workflow as graph_module
+from graph.assessment_helpers import route_model_response
+from graph.emergency_verification_subagent import (
+    EmergencyVerificationNodeUpdate,
+    build_emergency_verification_subgraph,
+    emergency_verification,
+    route_emergency_verification_gaps,
+)
+from graph.shared import (
+    AUDIT_READINESS_STAGE,
+    EMERGENCY_VERIFICATION_STAGE,
+    MAX_RESEARCH_ROUNDS,
+    check_evidence_gaps,
+    prepare_gap_research,
+)
+from graph.workflow import (
+    AuditReadinessNodeUpdate,
+    audit_readiness,
+    build_graph,
+    finalize_assessment,
+    route_after_emergency_verification,
+    route_evidence_gaps,
+    run_graph,
+)
 from models.assessment import (
     AuditRisk,
     AuditReadinessAssessment,
@@ -23,23 +48,6 @@ from models.assessment import (
 )
 from models.cases import EmergencyCaseInput
 from models.criteria import CriterionStatus
-import graph.workflow as graph_module
-from graph.workflow import (
-    AUDIT_READINESS_STAGE,
-    EMERGENCY_VERIFICATION_STAGE,
-    AuditReadinessNodeUpdate,
-    EmergencyVerificationNodeUpdate,
-    MAX_RESEARCH_ROUNDS,
-    audit_readiness,
-    build_graph,
-    check_evidence_gaps,
-    emergency_verification,
-    finalize_assessment,
-    prepare_gap_research,
-    route_evidence_gaps,
-    route_model_response,
-    run_graph,
-)
 from rag.tools import get_case_facts
 
 
@@ -190,6 +198,57 @@ def verification(
     )
 
 
+def rejected_em003_verification() -> EmergencyVerification:
+    """Build the poor-planning verification used in routing tests."""
+
+    return EmergencyVerification(
+        case_id="EM-003",
+        emergency_is_verified=False,
+        criterion_results=[
+            CriterionResult(
+                criterion_id="unexpected_event",
+                status=CriterionStatus.NOT_SUPPORTED,
+                rationale=(
+                    "The contract expiration was foreseeable and advance "
+                    "reminders were provided."
+                ),
+                supporting_evidence=[
+                    EvidenceReference(
+                        source_id="EM003-D02",
+                        source_type="case_document",
+                        description="Advance reminders were sent six months earlier.",
+                    )
+                ],
+                confidence=0.95,
+            ),
+            CriterionResult(
+                criterion_id="immediate_harm",
+                status=CriterionStatus.SUPPORTED,
+                rationale="A service interruption creates an operational concern.",
+                confidence=0.85,
+            ),
+            CriterionResult(
+                criterion_id="competition_impracticable",
+                status=CriterionStatus.PARTIALLY_SUPPORTED,
+                rationale=(
+                    "Immediate continuity is supported, but alternatives have "
+                    "not been fully documented."
+                ),
+                missing_evidence=["Documented review of available alternatives"],
+                follow_up_questions=["Were alternate providers contacted?"],
+                confidence=0.6,
+            ),
+        ],
+        rationale=(
+            "Service interruption presents a real operational concern, but "
+            "the triggering circumstance was foreseeable and caused by "
+            "missed procurement planning."
+        ),
+        confidence=0.82,
+        source_ids_used=["EM003-D01", "EM003-D02"],
+    )
+
+
 def audit_assessment(
     *,
     unresolved_id: str | None = None,
@@ -284,6 +343,39 @@ def test_router_selects_tools_and_current_assessment_stage() -> None:
             "assessment_stage": AUDIT_READINESS_STAGE,
         }
     ) == AUDIT_READINESS_STAGE
+
+
+def test_parent_starts_with_emergency_verification_subagent() -> None:
+    graph = build_graph(
+        chat_model=FakeChatModel([AIMessage(content="Research complete.")]),
+        tools=[example_lookup],
+    ).get_graph()
+    start_targets = [
+        edge.target for edge in graph.edges if edge.source == "__start__"
+    ]
+
+    assert start_targets == ["emergency_verification_subagent"]
+    assert EMERGENCY_VERIFICATION_STAGE not in graph.nodes
+
+
+def test_emergency_verification_is_a_compiled_subgraph() -> None:
+    subgraph = build_emergency_verification_subgraph(
+        chat_model=FakeChatModel([AIMessage(content="Research complete.")]),
+        tools=[example_lookup],
+    ).get_graph()
+
+    assert {
+        "model",
+        "tools",
+        EMERGENCY_VERIFICATION_STAGE,
+        "check_evidence_gaps",
+        "prepare_gap_research",
+    } <= set(subgraph.nodes)
+
+
+def test_gap_nodes_are_shared_by_both_assessment_stages() -> None:
+    assert check_evidence_gaps.__module__ == "graph.shared"
+    assert prepare_gap_research.__module__ == "graph.shared"
 
 
 def test_run_graph_rejects_blank_question() -> None:
@@ -470,24 +562,54 @@ def test_check_evidence_gaps_inspects_only_current_stage() -> None:
     assert len(audit_update["unresolved_criteria"]) == 1
 
 
-def test_emergency_routing_has_three_distinct_outcomes() -> None:
+def test_parent_routes_completed_emergency_verification() -> None:
     base = {
         "assessment_stage": EMERGENCY_VERIFICATION_STAGE,
         "research_rounds": 0,
         "max_research_rounds": MAX_RESEARCH_ROUNDS,
     }
 
-    assert route_evidence_gaps(
+    assert route_after_emergency_verification(
         {**base, "emergency_verification": verification(True), "unresolved_criteria": []}
     ) == AUDIT_READINESS_STAGE
-    assert route_evidence_gaps(
+    assert route_after_emergency_verification(
         {**base, "emergency_verification": verification(False), "unresolved_criteria": []}
     ) == "finalize"
+    assert route_after_emergency_verification(
+        {**base, "emergency_verification": verification(None), "unresolved_criteria": []}
+    ) == "finalize"
+
+
+def test_subgraph_keeps_indeterminate_verification_inside_gap_loop() -> None:
+    unresolved = verification(None)
+    state = {
+        "assessment_stage": EMERGENCY_VERIFICATION_STAGE,
+        "emergency_verification": unresolved,
+        "unresolved_criteria": unresolved.criterion_results[:1],
+        "research_rounds": 0,
+        "max_research_rounds": MAX_RESEARCH_ROUNDS,
+    }
+
+    assert route_emergency_verification_gaps(state) == "research"
+    assert route_emergency_verification_gaps(
+        {
+            **state,
+            "research_rounds": MAX_RESEARCH_ROUNDS,
+        }
+    ) == "complete"
+    assert route_emergency_verification_gaps(
+        {**state, "emergency_verification": verification(False)}
+    ) == "complete"
+
+
+def test_shared_gap_router_still_handles_audit_research() -> None:
     assert route_evidence_gaps(
         {
-            **base,
-            "emergency_verification": verification(None),
-            "unresolved_criteria": verification(None).criterion_results[:1],
+            "unresolved_criteria": [
+                criterion_result("approval_authority")
+            ],
+            "research_rounds": 0,
+            "max_research_rounds": MAX_RESEARCH_ROUNDS,
         }
     ) == "research"
 
@@ -522,52 +644,7 @@ def test_prepare_gap_research_batches_all_current_stage_gaps() -> None:
 
 
 def test_finalizer_renders_all_verification_results_and_case_context() -> None:
-    rejected = EmergencyVerification(
-        case_id="EM-003",
-        emergency_is_verified=False,
-        criterion_results=[
-            CriterionResult(
-                criterion_id="unexpected_event",
-                status=CriterionStatus.NOT_SUPPORTED,
-                rationale=(
-                    "The contract expiration was foreseeable and advance "
-                    "reminders were provided."
-                ),
-                supporting_evidence=[
-                    EvidenceReference(
-                        source_id="EM003-D02",
-                        source_type="case_document",
-                        description="Advance reminders were sent six months earlier.",
-                    )
-                ],
-                confidence=0.95,
-            ),
-            CriterionResult(
-                criterion_id="immediate_harm",
-                status=CriterionStatus.SUPPORTED,
-                rationale="A service interruption creates an operational concern.",
-                confidence=0.85,
-            ),
-            CriterionResult(
-                criterion_id="competition_impracticable",
-                status=CriterionStatus.PARTIALLY_SUPPORTED,
-                rationale=(
-                    "Immediate continuity is supported, but alternatives have "
-                    "not been fully documented."
-                ),
-                missing_evidence=["Documented review of available alternatives"],
-                follow_up_questions=["Were alternate providers contacted?"],
-                confidence=0.6,
-            ),
-        ],
-        rationale=(
-            "Service interruption presents a real operational concern, but "
-            "the triggering circumstance was foreseeable and caused by "
-            "missed procurement planning."
-        ),
-        confidence=0.82,
-        source_ids_used=["EM003-D01", "EM003-D02"],
-    )
+    rejected = rejected_em003_verification()
     state = state_with_case("EM-003")
     state.update(
         {
@@ -677,7 +754,11 @@ def test_verified_emergency_runs_audit_readiness(monkeypatch) -> None:
             "assessment_stage": AUDIT_READINESS_STAGE,
         }
 
-    monkeypatch.setattr(graph_module, "emergency_verification", fake_verification)
+    monkeypatch.setattr(
+        emergency_subagent_module,
+        "emergency_verification",
+        fake_verification,
+    )
     monkeypatch.setattr(graph_module, "audit_readiness", fake_audit)
     model = FakeChatModel([AIMessage(content="Initial research complete.")])
 
@@ -704,7 +785,11 @@ def test_rejected_emergency_finalizes_without_audit(monkeypatch) -> None:
         audit_calls += 1
         return {}
 
-    monkeypatch.setattr(graph_module, "emergency_verification", fake_verification)
+    monkeypatch.setattr(
+        emergency_subagent_module,
+        "emergency_verification",
+        fake_verification,
+    )
     monkeypatch.setattr(graph_module, "audit_readiness", fake_audit)
     model = FakeChatModel([AIMessage(content="Initial research complete.")])
 
@@ -719,6 +804,41 @@ def test_rejected_emergency_finalizes_without_audit(monkeypatch) -> None:
     assert "unexpected_event" in final_content
     assert "immediate_harm" in final_content
     assert "competition_impracticable" in final_content
+
+
+def test_em003_poor_planning_runs_inside_subgraph_and_skips_audit() -> None:
+    rejected = rejected_em003_verification()
+    case_request = AIMessage(
+        content="",
+        tool_calls=[
+            {
+                "name": "get_case_facts",
+                "args": {"case_id": "EM-003"},
+                "id": "em003-case-facts",
+                "type": "tool_call",
+            }
+        ],
+    )
+    model = FakeChatModel(
+        [case_request, AIMessage(content="Case research complete.")],
+        [rejected],
+    )
+
+    result = build_graph(chat_model=model, tools=[get_case_facts]).invoke(
+        {"messages": [HumanMessage(content="Evaluate case EM-003")]}
+    )
+
+    assert result["emergency_verification"] == rejected
+    assert result.get("audit_readiness") is None
+    assert model.structured_schemas == [EmergencyVerification]
+    assert [
+        message.tool_call_id
+        for message in result["messages"]
+        if isinstance(message, ToolMessage)
+    ] == ["em003-case-facts"]
+    final_content = str(result["messages"][-1].content)
+    assert "emergency procurement exception is not justified" in final_content
+    assert "missed procurement planning" in final_content
 
 
 def test_verification_gap_research_returns_to_verification(monkeypatch) -> None:
@@ -746,12 +866,32 @@ def test_verification_gap_research_returns_to_verification(monkeypatch) -> None:
             "assessment_stage": AUDIT_READINESS_STAGE,
         }
 
-    monkeypatch.setattr(graph_module, "emergency_verification", fake_verification)
+    monkeypatch.setattr(
+        emergency_subagent_module,
+        "emergency_verification",
+        fake_verification,
+    )
     monkeypatch.setattr(graph_module, "audit_readiness", fake_audit)
     model = FakeChatModel(
         [
             AIMessage(content="Initial research complete."),
-            tool_request(call_id="gap-1"),
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {
+                        "name": "example_lookup",
+                        "args": {"query": "foreseeability evidence"},
+                        "id": "verification-gap-1",
+                        "type": "tool_call",
+                    },
+                    {
+                        "name": "example_lookup",
+                        "args": {"query": "competition evidence"},
+                        "id": "verification-gap-2",
+                        "type": "tool_call",
+                    },
+                ],
+            ),
             AIMessage(content="Gap research complete."),
         ]
     )
@@ -764,6 +904,11 @@ def test_verification_gap_research_returns_to_verification(monkeypatch) -> None:
     assert result["research_rounds"] == 1
     assert result["emergency_verification"].emergency_is_verified is True
     assert result["audit_readiness"] is resolved_audit
+    assert [
+        message.tool_call_id
+        for message in result["messages"]
+        if isinstance(message, ToolMessage)
+    ] == ["verification-gap-1", "verification-gap-2"]
 
 
 def test_audit_gap_research_returns_to_audit(monkeypatch) -> None:
@@ -793,7 +938,11 @@ def test_audit_gap_research_returns_to_audit(monkeypatch) -> None:
             "assessment_stage": AUDIT_READINESS_STAGE,
         }
 
-    monkeypatch.setattr(graph_module, "emergency_verification", fake_verification)
+    monkeypatch.setattr(
+        emergency_subagent_module,
+        "emergency_verification",
+        fake_verification,
+    )
     monkeypatch.setattr(graph_module, "audit_readiness", fake_audit)
     model = FakeChatModel(
         [
@@ -844,7 +993,11 @@ def test_model_can_decline_gap_research_and_preserve_unresolved(
             "assessment_stage": EMERGENCY_VERIFICATION_STAGE,
         }
 
-    monkeypatch.setattr(graph_module, "emergency_verification", fake_verification)
+    monkeypatch.setattr(
+        emergency_subagent_module,
+        "emergency_verification",
+        fake_verification,
+    )
     no_tool_response = AIMessage(
         content="The remaining evidence must be provided by the agency."
     )
@@ -879,7 +1032,11 @@ def test_gap_research_stops_after_three_rounds(monkeypatch) -> None:
             "assessment_stage": EMERGENCY_VERIFICATION_STAGE,
         }
 
-    monkeypatch.setattr(graph_module, "emergency_verification", fake_verification)
+    monkeypatch.setattr(
+        emergency_subagent_module,
+        "emergency_verification",
+        fake_verification,
+    )
     responses: list[AIMessage] = [AIMessage(content="Initial research complete.")]
     for round_number in range(1, MAX_RESEARCH_ROUNDS + 1):
         responses.extend(

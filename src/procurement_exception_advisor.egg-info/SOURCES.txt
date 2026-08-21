@@ -12,6 +12,12 @@ src/data/case_loader.py
 src/decision/__init__.py
 src/decision/assessment_builder.py
 src/decision/emergency_criteria.py
+src/graph/__init__.py
+src/graph/assessment_helpers.py
+src/graph/cli.py
+src/graph/emergency_verification_subagent.py
+src/graph/shared.py
+src/graph/workflow.py
 src/integrations/__init__.py
 src/integrations/usaspending_mcp.py
 src/models/__init__.py
@@ -27,8 +33,6 @@ src/procurement_exception_advisor.egg-info/top_level.txt
 src/rag/__init__.py
 src/rag/answerer.py
 src/rag/case_tool_demo.py
-src/rag/graph.py
-src/rag/graph_cli.py
 src/rag/ingest.py
 src/rag/metadata.py
 src/rag/retriever.py
@@ -40,10 +44,10 @@ tests/test_assessment_models.py
 tests/test_case_loader.py
 tests/test_case_models.py
 tests/test_emergency_criteria.py
+tests/test_graph_cli.py
+tests/test_graph_workflow.py
 tests/test_rag_answerer.py
 tests/test_rag_case_tool_demo.py
-tests/test_rag_graph.py
-tests/test_rag_graph_cli.py
 tests/test_rag_ingest.py
 tests/test_rag_metadata.py
 tests/test_rag_retriever.py
