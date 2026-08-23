@@ -39,9 +39,11 @@ def check_evidence_gaps(
     if stage == EMERGENCY_VERIFICATION_STAGE:
         verification = state.get("emergency_verification")
         results = [] if verification is None else verification.criterion_results
-    else:
+    elif stage == AUDIT_READINESS_STAGE:
         audit = state.get("audit_readiness")
         results = [] if audit is None else audit.criterion_results
+    else:
+        raise RuntimeError(f"Unsupported assessment stage: {stage}")
 
     return {
         "unresolved_criteria": [

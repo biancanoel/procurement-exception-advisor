@@ -156,7 +156,7 @@ def emergency_verification(
 def route_emergency_verification_gaps(
     state: EmergencyVerificationSubgraphState,
 ) -> str:
-    """Keep unresolved verification work inside its bounded subgraph."""
+    """Research unresolved gaps in emergency verificationwhile bounded rounds remain."""
 
     verification = state.get("emergency_verification")
     if (
