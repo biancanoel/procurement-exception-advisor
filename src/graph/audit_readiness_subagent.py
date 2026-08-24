@@ -13,7 +13,7 @@ from langgraph.prebuilt import ToolNode
 from decision.emergency_criteria import AUDIT_READINESS_CRITERIA
 from graph.assessment_helpers import (
     STATUS_SEMANTICS_PROMPT,
-    case_from_messages,
+    case_from_state,
     create_chat_model,
     create_model_node,
     criteria_context,
@@ -35,6 +35,7 @@ from models.assessment import (
     EmergencyProcurementAssessment,
     EmergencyVerification,
 )
+from models.cases import EmergencyCaseInput
 from rag.tool_call_demo import AVAILABLE_TOOLS
 
 
@@ -62,6 +63,7 @@ human-review fields must clearly state what remains outstanding."""
 class AuditReadinessSubgraphState(MessagesState):
     """Internal state owned by the audit-readiness sub-agent."""
 
+    case_input: EmergencyCaseInput | None
     emergency_verification: EmergencyVerification | None
     audit_readiness: AuditReadinessAssessment | None
     assessment: EmergencyProcurementAssessment | None
@@ -76,6 +78,7 @@ class AuditReadinessSubgraphState(MessagesState):
 class AuditReadinessNodeUpdate(TypedDict):
     """State fields written by the audit-readiness assessment node."""
 
+    case_input: EmergencyCaseInput | None
     audit_readiness: AuditReadinessAssessment | None
     assessment: EmergencyProcurementAssessment | None
     assessment_stage: str
@@ -85,6 +88,7 @@ class AuditReadinessSubagentUpdate(TypedDict):
     """Child-graph output returned across the parent graph boundary."""
 
     messages: list[BaseMessage]
+    case_input: EmergencyCaseInput | None
     audit_readiness: AuditReadinessAssessment | None
     assessment: EmergencyProcurementAssessment | None
     assessment_stage: str
@@ -100,13 +104,15 @@ def audit_readiness(
     verification = state.get("emergency_verification")
     if verification is None or verification.emergency_is_verified is not True:
         return {
+            "case_input": state.get("case_input"),
             "audit_readiness": None,
             "assessment": None,
             "assessment_stage": AUDIT_READINESS_STAGE,
         }
-    case = case_from_messages(state["messages"])
+    case = case_from_state(state)
     if case is None:
         return {
+            "case_input": None,
             "audit_readiness": None,
             "assessment": None,
             "assessment_stage": AUDIT_READINESS_STAGE,
@@ -149,6 +155,7 @@ def audit_readiness(
         audit_readiness=audit,
     )
     return {
+        "case_input": case,
         "audit_readiness": audit,
         "assessment": assessment,
         "assessment_stage": AUDIT_READINESS_STAGE,
@@ -225,6 +232,7 @@ def create_audit_readiness_subagent_node(
         result = audit_subgraph.invoke(
             {
                 "messages": parent_messages,
+                "case_input": state.get("case_input"),
                 "emergency_verification": state.get("emergency_verification"),
                 "audit_readiness": None,
                 "assessment": state.get("assessment"),
@@ -242,6 +250,7 @@ def create_audit_readiness_subagent_node(
         child_messages = list(result["messages"])
         return {
             "messages": child_messages[len(parent_messages):],
+            "case_input": result.get("case_input"),
             "audit_readiness": result.get("audit_readiness"),
             "assessment": result.get("assessment"),
             "assessment_stage": AUDIT_READINESS_STAGE,

@@ -13,7 +13,7 @@ from langgraph.prebuilt import ToolNode
 from decision.emergency_criteria import EMERGENCY_CRITERIA
 from graph.assessment_helpers import (
     STATUS_SEMANTICS_PROMPT,
-    case_from_messages,
+    case_from_state,
     create_chat_model,
     create_model_node,
     criteria_context,
@@ -34,6 +34,7 @@ from models.assessment import (
     EmergencyProcurementAssessment,
     EmergencyVerification,
 )
+from models.cases import EmergencyCaseInput
 from rag.tool_call_demo import AVAILABLE_TOOLS
 
 
@@ -59,6 +60,7 @@ criteria in this stage."""
 class EmergencyVerificationSubgraphState(MessagesState):
     """Internal state owned by the emergency-verification sub-agent."""
 
+    case_input: EmergencyCaseInput | None
     emergency_verification: EmergencyVerification | None
     audit_readiness: None
     assessment: EmergencyProcurementAssessment | None
@@ -73,6 +75,7 @@ class EmergencyVerificationSubgraphState(MessagesState):
 class EmergencyVerificationNodeUpdate(TypedDict):
     """State fields written by the emergency-verification assessment node."""
 
+    case_input: EmergencyCaseInput | None
     emergency_verification: EmergencyVerification | None
     audit_readiness: None
     assessment: EmergencyProcurementAssessment | None
@@ -83,6 +86,7 @@ class EmergencyVerificationSubagentUpdate(TypedDict):
     """Child-graph output returned across the parent graph boundary."""
 
     messages: list[BaseMessage]
+    case_input: EmergencyCaseInput | None
     emergency_verification: EmergencyVerification | None
     audit_readiness: None
     assessment: EmergencyProcurementAssessment | None
@@ -101,9 +105,10 @@ def emergency_verification(
 ) -> EmergencyVerificationNodeUpdate:
     """Determine whether the facts establish an emergency procurement."""
 
-    case = case_from_messages(state["messages"])
+    case = case_from_state(state)
     if case is None:
         return {
+            "case_input": None,
             "emergency_verification": None,
             "audit_readiness": None,
             "assessment": None,
@@ -142,6 +147,7 @@ def emergency_verification(
         state["messages"],
     )
     return {
+        "case_input": case,
         "emergency_verification": verification,
         "audit_readiness": None,
         "assessment": EmergencyProcurementAssessment(
@@ -229,6 +235,7 @@ def create_emergency_verification_subagent_node(
         result = verification_subgraph.invoke(
             {
                 "messages": parent_messages,
+                "case_input": state.get("case_input"),
                 "emergency_verification": None,
                 "audit_readiness": None,
                 "assessment": None,
@@ -246,6 +253,7 @@ def create_emergency_verification_subagent_node(
         child_messages = list(result["messages"])
         return {
             "messages": child_messages[len(parent_messages):],
+            "case_input": result.get("case_input"),
             "emergency_verification": result.get("emergency_verification"),
             "audit_readiness": None,
             "assessment": result.get("assessment"),

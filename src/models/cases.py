@@ -5,7 +5,7 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 
 
 class StrictModel(BaseModel):
@@ -19,8 +19,8 @@ class StrictModel(BaseModel):
 
 
 class Jurisdiction(StrictModel):
-    state: str = Field(min_length=1)
-    agency: str = Field(min_length=1)
+    state: str | None = Field(default=None, min_length=1)
+    agency: str | None = Field(default=None, min_length=1)
 
 
 class AvailableDocument(StrictModel):
@@ -30,16 +30,33 @@ class AvailableDocument(StrictModel):
 
 
 class EmergencyCaseInput(StrictModel):
-    schema_version: Literal["1.0"]
-    case_id: str = Field(pattern=r"^EM-[0-9]{3}$")
-    title: str = Field(min_length=1)
-    workflow_type: Literal["emergency_procurement"]
-    jurisdiction: Jurisdiction
-    department: str = Field(min_length=1)
-    estimated_amount_usd: float = Field(ge=0)
-    proposed_vendor: str = Field(min_length=1)
-    request_text: str = Field(min_length=1)
-    available_documents: list[AvailableDocument]
+    """Known user-supplied facts for an emergency procurement request.
+
+    Only the narrative description is required. Defaults represent application
+    metadata or an explicitly unknown fact; assessment stages must not infer a
+    missing fact from these values.
+    """
+
+    schema_version: Literal["1.0"] = "1.0"
+    case_id: str = Field(default="EM-000", pattern=r"^EM-[0-9]{3}$")
+    title: str | None = Field(default=None, min_length=1)
+    workflow_type: Literal["emergency_procurement"] = "emergency_procurement"
+    jurisdiction: Jurisdiction | None = None
+    department: str | None = Field(default=None, min_length=1)
+    estimated_amount_usd: float | None = Field(default=None, ge=0)
+    proposed_vendor: str | None = Field(default=None, min_length=1)
+    request_text: str = Field(
+        min_length=1,
+        validation_alias=AliasChoices("description", "request_text"),
+        description="Required description of the emergency situation.",
+    )
+    available_documents: list[AvailableDocument] = Field(default_factory=list)
+
+    @property
+    def description(self) -> str:
+        """Expose the required narrative using GUI-friendly terminology."""
+
+        return self.request_text
 
     @field_validator("available_documents")
     @classmethod

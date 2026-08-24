@@ -4,17 +4,9 @@
   "title": "Emergency Procurement Case Input",
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "schema_version",
-    "case_id",
-    "title",
-    "workflow_type",
-    "jurisdiction",
-    "department",
-    "estimated_amount_usd",
-    "proposed_vendor",
-    "request_text",
-    "available_documents"
+  "anyOf": [
+    {"required": ["description"]},
+    {"required": ["request_text"]}
   ],
   "properties": {
     "schema_version": {
@@ -26,7 +18,7 @@
       "pattern": "^EM-[0-9]{3}$"
     },
     "title": {
-      "type": "string",
+      "type": ["string", "null"],
       "minLength": 1
     },
     "workflow_type": {
@@ -34,36 +26,38 @@
       "const": "emergency_procurement"
     },
     "jurisdiction": {
-      "type": "object",
+      "type": ["object", "null"],
       "additionalProperties": false,
-      "required": [
-        "state",
-        "agency"
-      ],
       "properties": {
         "state": {
-          "type": "string"
+          "type": ["string", "null"]
         },
         "agency": {
-          "type": "string"
+          "type": ["string", "null"]
         }
       }
     },
     "department": {
-      "type": "string",
+      "type": ["string", "null"],
       "minLength": 1
     },
     "estimated_amount_usd": {
-      "type": "number",
+      "type": ["number", "null"],
       "minimum": 0
     },
     "proposed_vendor": {
-      "type": "string",
+      "type": ["string", "null"],
       "minLength": 1
     },
     "request_text": {
       "type": "string",
-      "minLength": 1
+      "minLength": 1,
+      "description": "Legacy JSON-fixture name for the required description."
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Required description of the emergency situation."
     },
     "available_documents": {
       "type": "array",

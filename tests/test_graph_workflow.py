@@ -431,6 +431,7 @@ def test_emergency_verification_uses_specific_node_update_type() -> None:
 
     assert return_type is EmergencyVerificationNodeUpdate
     assert get_type_hints(EmergencyVerificationNodeUpdate) == {
+        "case_input": EmergencyCaseInput | None,
         "emergency_verification": EmergencyVerification | None,
         "audit_readiness": type(None),
         "assessment": EmergencyProcurementAssessment | None,
@@ -492,6 +493,7 @@ def test_audit_readiness_uses_specific_node_update_type() -> None:
 
     assert return_type is AuditReadinessNodeUpdate
     assert get_type_hints(AuditReadinessNodeUpdate) == {
+        "case_input": EmergencyCaseInput | None,
         "audit_readiness": AuditReadinessAssessment | None,
         "assessment": EmergencyProcurementAssessment | None,
         "assessment_stage": str,
@@ -577,8 +579,42 @@ def test_real_case_tool_artifact_reaches_emergency_verification() -> None:
     )
     assert isinstance(tool_message.artifact, EmergencyCaseInput)
     assert tool_message.artifact.case_id == "EM-005"
+    assert result["case_input"].case_id == "EM-005"
     assert result["emergency_verification"].case_id == "EM-005"
     assert result.get("audit_readiness") is None
+
+
+def test_parent_graph_evaluates_dynamic_case_input_without_case_tool() -> None:
+    case = EmergencyCaseInput(
+        description=(
+            "A critical treatment chemical may run out before the next "
+            "scheduled delivery."
+        )
+    )
+    rejected = verification(False).model_copy(update={"case_id": case.case_id})
+    model = FakeChatModel(
+        [AIMessage(content="No preliminary tool call is needed.")],
+        [rejected],
+    )
+
+    result = build_graph(chat_model=model, tools=[example_lookup]).invoke(
+        {
+            "messages": [HumanMessage(content="Evaluate the supplied case")],
+            "case_input": case,
+            "research_rounds": 0,
+            "max_research_rounds": 0,
+            "gap_research_active": False,
+            "gap_research_tools_used": False,
+        }
+    )
+
+    assert result["case_input"] == case
+    assert result["emergency_verification"].case_id == case.case_id
+    assert case.description in model.bound_model.inputs[0][0].content
+    assert not any(
+        isinstance(message, ToolMessage) and message.name == "get_case_facts"
+        for message in result["messages"]
+    )
 
 
 def test_check_evidence_gaps_inspects_only_current_stage() -> None:

@@ -62,6 +62,36 @@ def test_input_model_accepts_valid_case() -> None:
     )
 
 
+def test_input_model_requires_only_an_emergency_description() -> None:
+    case = EmergencyCaseInput.model_validate(
+        {
+            "description": (
+                "The water treatment plant has less than four days of "
+                "disinfectant remaining."
+            )
+        }
+    )
+
+    assert case.description == case.request_text
+    assert case.case_id == "EM-000"
+    assert case.schema_version == "1.0"
+    assert case.workflow_type == "emergency_procurement"
+    assert case.title is None
+    assert case.jurisdiction is None
+    assert case.department is None
+    assert case.estimated_amount_usd is None
+    assert case.proposed_vendor is None
+    assert case.available_documents == []
+    assert EmergencyCaseInput.model_json_schema()["required"] == [
+        "description"
+    ]
+
+
+def test_input_model_rejects_missing_description() -> None:
+    with pytest.raises(ValidationError, match="description"):
+        EmergencyCaseInput.model_validate({})
+
+
 def test_input_model_rejects_unexpected_fields() -> None:
     with pytest.raises(ValidationError):
         EmergencyCaseInput.model_validate(

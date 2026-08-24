@@ -11,7 +11,7 @@ from langgraph.graph import END, START, MessagesState, StateGraph
 
 from decision.emergency_criteria import get_procurement_criterion
 from graph.assessment_helpers import (
-    case_from_messages,
+    case_from_state,
     create_chat_model,
 )
 from graph.audit_readiness_subagent import (
@@ -35,12 +35,14 @@ from models.assessment import (
     EvidenceReference,
     FinalRecommendation,
 )
+from models.cases import EmergencyCaseInput
 from rag.tool_call_demo import AVAILABLE_TOOLS
 
 
 class ProcurementGraphState(MessagesState):
     """Shared messages and state for the two-stage assessment workflow."""
 
+    case_input: EmergencyCaseInput | None
     emergency_verification: EmergencyVerification | None
     audit_readiness: AuditReadinessAssessment | None
     assessment: EmergencyProcurementAssessment | None
@@ -126,14 +128,21 @@ def _render_criterion_result(result: CriterionResult) -> list[str]:
 def _case_heading(state: ProcurementGraphState, case_id: str) -> list[str]:
     """Use case state only to add identifying presentation context."""
 
-    case = case_from_messages(state["messages"])
+    case = case_from_state(state)
     if case is None or case.case_id != case_id:
         return [f"Case: {case_id}"]
-    return [
-        f"Case: {case.case_id} — {case.title}",
-        f"Agency: {case.jurisdiction.agency}",
-        f"Department: {case.department}",
+    heading = [
+        (
+            f"Case: {case.case_id} — {case.title}"
+            if case.title
+            else f"Case: {case.case_id}"
+        )
     ]
+    if case.jurisdiction is not None and case.jurisdiction.agency:
+        heading.append(f"Agency: {case.jurisdiction.agency}")
+    if case.department:
+        heading.append(f"Department: {case.department}")
+    return heading
 
 
 def _render_emergency_verification(
@@ -328,6 +337,7 @@ def build_graph(
 def run_graph(
     question: str,
     *,
+    case_input: EmergencyCaseInput | None = None,
     chat_model: Any | None = None,
     tools: Sequence[BaseTool] = AVAILABLE_TOOLS,
 ) -> AIMessage:
@@ -339,6 +349,7 @@ def run_graph(
     result = build_graph(chat_model=chat_model, tools=tools).invoke(
         {
             "messages": [HumanMessage(content=question)],
+            "case_input": case_input,
             "emergency_verification": None,
             "audit_readiness": None,
             "assessment": None,
