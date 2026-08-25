@@ -14,6 +14,7 @@ src/decision/assessment_builder.py
 src/decision/emergency_criteria.py
 src/graph/__init__.py
 src/graph/assessment_helpers.py
+src/graph/audit_readiness_subagent.py
 src/graph/cli.py
 src/graph/emergency_verification_subagent.py
 src/graph/shared.py
@@ -39,6 +40,7 @@ src/rag/retriever.py
 src/rag/tool_call_demo.py
 src/rag/tools.py
 src/ui/__init__.py
+src/ui/app.py
 tests/test_assessment_builder.py
 tests/test_assessment_models.py
 tests/test_case_loader.py
@@ -53,3 +55,4 @@ tests/test_rag_metadata.py
 tests/test_rag_retriever.py
 tests/test_rag_tool_call_demo.py
 tests/test_rag_tools.py
+tests/test_ui_app.py

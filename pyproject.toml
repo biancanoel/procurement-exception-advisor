@@ -5,6 +5,7 @@ description = "Agentic decision support for emergency and sole-source procuremen
 requires-python = ">=3.11"
 dependencies = [
     "chromadb>=1,<2",
+    "gradio>=6,<7",
     "langchain-openai>=1,<2",
     "langgraph>=1,<2",
     "mcp>=2,<3",
@@ -23,6 +24,7 @@ ask-procurement-policy = "rag.answerer:main"
 request-procurement-tool-call = "rag.tool_call_demo:main"
 get-case-facts = "rag.case_tool_demo:main"
 ask-procurement-graph = "graph.cli:main"
+procurement-advisor-ui = "ui.app:main"
 
 [project.optional-dependencies]
 dev = [

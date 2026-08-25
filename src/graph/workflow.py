@@ -11,8 +11,10 @@ from langgraph.graph import END, START, MessagesState, StateGraph
 
 from decision.emergency_criteria import get_procurement_criterion
 from graph.assessment_helpers import (
+    append_html_list,
     case_from_state,
     create_chat_model,
+    format_evidence,
 )
 from graph.audit_readiness_subagent import (
     build_audit_readiness_subgraph,
@@ -32,10 +34,10 @@ from models.assessment import (
     CriterionResult,
     EmergencyProcurementAssessment,
     EmergencyVerification,
-    EvidenceReference,
     FinalRecommendation,
 )
 from models.cases import EmergencyCaseInput
+from models.criteria import CriterionStatus
 from rag.tool_call_demo import AVAILABLE_TOOLS
 
 
@@ -65,31 +67,6 @@ def route_after_emergency_verification(
     return "finalize"
 
 
-def _append_list(
-    lines: list[str],
-    heading: str,
-    values: Sequence[str],
-) -> None:
-    """Append a labeled list without interpreting its values."""
-
-    if not values:
-        return
-    lines.append(f"{heading}:")
-    lines.extend(f"- {value}" for value in values)
-
-
-def _format_evidence(reference: EvidenceReference) -> str:
-    """Render one existing evidence reference without changing its meaning."""
-
-    source = f"source: {reference.source_id}"
-    if reference.source_location:
-        source += f", location: {reference.source_location}"
-    rendered = f"{reference.description} ({source})"
-    if reference.quote_or_fact:
-        rendered += f" — {reference.quote_or_fact}"
-    return rendered
-
-
 def _render_criterion_result(result: CriterionResult) -> list[str]:
     """Render every structured field relevant to one criterion result."""
 
@@ -98,24 +75,28 @@ def _render_criterion_result(result: CriterionResult) -> list[str]:
     except KeyError:
         criterion_name = result.criterion_id.replace("_", " ").title()
 
+    status_label = result.status.value
+    if result.status == CriterionStatus.NOT_EVALUATED:
+        status_label = "insufficient evidence — criterion not passed"
+
     lines = [
         f"### {criterion_name} ({result.criterion_id})",
-        f"Status: {result.status.value}",
+        f"Status: {status_label}",
         f"Rationale: {result.rationale}",
         f"Confidence: {result.confidence:.0%}",
     ]
-    _append_list(
+    append_html_list(
         lines,
         "Supporting evidence",
-        [_format_evidence(item) for item in result.supporting_evidence],
+        [format_evidence(item) for item in result.supporting_evidence],
     )
-    _append_list(
+    append_html_list(
         lines,
         "Conflicting evidence",
-        [_format_evidence(item) for item in result.conflicting_evidence],
+        [format_evidence(item) for item in result.conflicting_evidence],
     )
-    _append_list(lines, "Missing evidence", result.missing_evidence)
-    _append_list(lines, "Follow-up questions", result.follow_up_questions)
+    append_html_list(lines, "Missing evidence", result.missing_evidence)
+    append_html_list(lines, "Follow-up questions", result.follow_up_questions)
     lines.append(
         "Requires human review: "
         f"{'yes' if result.requires_human_review else 'no'}"
@@ -179,7 +160,6 @@ def _render_emergency_verification(
     ]
     for result in verification.criterion_results:
         lines.extend(["", *_render_criterion_result(result)])
-    _append_list(lines, "Sources used", verification.source_ids_used)
     return "\n".join(lines)
 
 
@@ -239,16 +219,15 @@ def _render_audit_readiness(
             )
 
     lines.extend(["", "## Outstanding checklist"])
-    _append_list(lines, "Missing documents", audit.missing_documents)
-    _append_list(lines, "Required approvals", audit.required_approvals)
-    _append_list(lines, "Next steps", audit.next_steps)
+    append_html_list(lines, "Missing documents", audit.missing_documents)
+    append_html_list(lines, "Required approvals", audit.required_approvals)
+    append_html_list(lines, "Next steps", audit.next_steps)
     lines.append(
         "Requires human review: "
         f"{'yes' if audit.requires_human_review else 'no'}"
     )
     if audit.human_review_reason:
         lines.append(f"Human-review reason: {audit.human_review_reason}")
-    _append_list(lines, "Sources used", audit.source_ids_used)
     return "\n".join(lines)
 
 
@@ -292,10 +271,14 @@ def build_graph(
 
     model = chat_model or create_chat_model()
     model_with_tools = model.bind_tools(list(tools))
+    model_for_supplied_case = model.bind_tools(
+        [tool for tool in tools if tool.name != "get_case_facts"]
+    )
     verification_subgraph = build_emergency_verification_subgraph(
         chat_model=model,
         tools=tools,
         model_with_tools=model_with_tools,
+        model_for_supplied_case=model_for_supplied_case,
     )
 
     run_emergency_verification_subagent = (
@@ -305,6 +288,7 @@ def build_graph(
         chat_model=model,
         tools=tools,
         model_with_tools=model_with_tools,
+        model_for_supplied_case=model_for_supplied_case,
     )
     run_audit_readiness_subagent = create_audit_readiness_subagent_node(
         audit_subgraph

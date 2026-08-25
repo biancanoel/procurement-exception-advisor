@@ -181,11 +181,16 @@ def build_emergency_verification_subgraph(
     chat_model: Any | None = None,
     tools: Sequence[BaseTool] = AVAILABLE_TOOLS,
     model_with_tools: Any | None = None,
+    model_for_supplied_case: Any | None = None,
 ) -> Any:
     """Build the bounded model/tool/research loop for emergency verification."""
 
     model = chat_model or create_chat_model()
     bound_model = model_with_tools or model.bind_tools(list(tools))
+    # Not really going to need to bind the model to tools here for most situations, but this 'OR'does allow for tests to run easier and spiltting subgraph from parent later
+    supplied_case_model = model_for_supplied_case or model.bind_tools(
+        [tool for tool in tools if tool.name != "get_case_facts"]
+    )
 
     def verify_emergency(
         state: EmergencyVerificationSubgraphState,
@@ -193,7 +198,13 @@ def build_emergency_verification_subgraph(
         return emergency_verification(state, chat_model=model)
 
     builder = StateGraph(EmergencyVerificationSubgraphState)
-    builder.add_node("model", create_model_node(bound_model))
+    builder.add_node(
+        "model",
+        create_model_node(
+            bound_model,
+            model_for_supplied_case=supplied_case_model,
+        ),
+    )
     builder.add_node("tools", ToolNode(list(tools)))
     builder.add_node(EMERGENCY_VERIFICATION_STAGE, verify_emergency)
     builder.add_node("check_evidence_gaps", check_evidence_gaps)

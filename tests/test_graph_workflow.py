@@ -14,7 +14,11 @@ from decision.emergency_criteria import (
 )
 import graph.audit_readiness_subagent as audit_subagent_module
 import graph.emergency_verification_subagent as emergency_subagent_module
-from graph.assessment_helpers import route_model_response
+from graph.assessment_helpers import (
+    append_html_list,
+    create_model_node,
+    route_model_response,
+)
 from graph.audit_readiness_subagent import (
     AuditReadinessNodeUpdate,
     audit_readiness,
@@ -92,6 +96,7 @@ class FakeChatModel:
         ] | None = None,
     ) -> None:
         self.bound_tools: list[Any] = []
+        self.bound_tool_sets: list[list[Any]] = []
         self.bound_model = FakeBoundModel(responses)
         self.structured_responses = iter(structured_responses or [])
         self.structured_schemas: list[type[Any]] = []
@@ -100,6 +105,7 @@ class FakeChatModel:
 
     def bind_tools(self, tools: list[Any]) -> FakeBoundModel:
         self.bound_tools = tools
+        self.bound_tool_sets.append(list(tools))
         return self.bound_model
 
     def with_structured_output(
@@ -346,6 +352,28 @@ def test_router_selects_tools_and_current_assessment_stage() -> None:
             "assessment_stage": AUDIT_READINESS_STAGE,
         }
     ) == AUDIT_READINESS_STAGE
+
+
+def test_model_node_uses_case_independent_tools_for_supplied_case() -> None:
+    regular_model = FakeBoundModel([AIMessage(content="regular")])
+    supplied_case_model = FakeBoundModel([AIMessage(content="supplied")])
+    call_model = create_model_node(
+        regular_model,
+        model_for_supplied_case=supplied_case_model,
+    )
+
+    update = call_model(
+        {
+            "messages": [HumanMessage(content="Evaluate this case")],
+            "case_input": EmergencyCaseInput(
+                description="A beach tournament needs replacement nets."
+            ),
+        }
+    )
+
+    assert update["messages"][0].content == "supplied"
+    assert regular_model.inputs == []
+    assert len(supplied_case_model.inputs) == 1
 
 
 def test_parent_starts_with_emergency_verification_subagent() -> None:
@@ -597,7 +625,10 @@ def test_parent_graph_evaluates_dynamic_case_input_without_case_tool() -> None:
         [rejected],
     )
 
-    result = build_graph(chat_model=model, tools=[example_lookup]).invoke(
+    result = build_graph(
+        chat_model=model,
+        tools=[get_case_facts, example_lookup],
+    ).invoke(
         {
             "messages": [HumanMessage(content="Evaluate the supplied case")],
             "case_input": case,
@@ -611,6 +642,14 @@ def test_parent_graph_evaluates_dynamic_case_input_without_case_tool() -> None:
     assert result["case_input"] == case
     assert result["emergency_verification"].case_id == case.case_id
     assert case.description in model.bound_model.inputs[0][0].content
+    assert "do not call get_case_facts" in model.bound_model.inputs[0][0].content
+    assert [
+        [tool.name for tool in tool_set]
+        for tool_set in model.bound_tool_sets
+    ] == [
+        ["get_case_facts", "example_lookup"],
+        ["example_lookup"],
+    ]
     assert not any(
         isinstance(message, ToolMessage) and message.name == "get_case_facts"
         for message in result["messages"]
@@ -722,8 +761,30 @@ def test_prepare_gap_research_batches_all_current_stage_gaps() -> None:
     assert "price_reasonableness" in context
 
 
+def test_html_list_formatter_closes_lists_and_escapes_values() -> None:
+    lines = ["Before"]
+
+    append_html_list(
+        lines,
+        "Missing evidence",
+        ["Vendor <quote>", "Approval & date"],
+    )
+
+    assert lines == [
+        "Before",
+        "",
+        "<h4>Missing evidence</h4>",
+        "<ul>",
+        "<li>Vendor &lt;quote&gt;</li>",
+        "<li>Approval &amp; date</li>",
+        "</ul>",
+        "",
+    ]
+
+
 def test_finalizer_renders_all_verification_results_and_case_context() -> None:
     rejected = rejected_em003_verification()
+    rejected.source_ids_used.append("call_uiyExxI0n50LIITkllkxv2na")
     state = state_with_case("EM-003")
     state.update(
         {
@@ -745,9 +806,15 @@ def test_finalizer_renders_all_verification_results_and_case_context() -> None:
     assert "Status: supported" in content
     assert "competition_impracticable" in content
     assert "Status: partially_supported" in content
+    assert "<h4>Missing evidence</h4>" in content
+    assert "<h4>Follow-up questions</h4>" in content
+    assert "<ul>" in content
+    assert "</ul>" in content
     assert "Documented review of available alternatives" in content
     assert "Were alternate providers contacted?" in content
     assert "EM003-D02" in content
+    assert "Sources used" not in content
+    assert "call_uiyExxI0n50LIITkllkxv2na" not in content
 
 
 def test_finalizer_renders_audit_result_and_existing_checklist() -> None:
@@ -783,6 +850,8 @@ def test_finalizer_renders_audit_result_and_existing_checklist() -> None:
     assert "not yet audit-ready" in content
     assert "Recommendation: additional_evidence_required" in content
     assert "documentation_complete" in content
+    assert "Status: insufficient evidence — criterion not passed" in content
+    assert "Status: not_evaluated" not in content
     assert "Signed emergency justification" in content
     assert "City Manager approval" in content
     assert "Add the executed approval" in content

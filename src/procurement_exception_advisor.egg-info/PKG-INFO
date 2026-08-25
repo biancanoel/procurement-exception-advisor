@@ -4,6 +4,7 @@ Version: 0.1.0
 Summary: Agentic decision support for emergency and sole-source procurement exceptions
 Requires-Python: >=3.11
 Requires-Dist: chromadb<2,>=1
+Requires-Dist: gradio<7,>=6
 Requires-Dist: langchain-openai<2,>=1
 Requires-Dist: langgraph<2,>=1
 Requires-Dist: mcp<3,>=2

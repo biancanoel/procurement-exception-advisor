@@ -179,11 +179,16 @@ def build_audit_readiness_subgraph(
     chat_model: Any | None = None,
     tools: Sequence[BaseTool] = AVAILABLE_TOOLS,
     model_with_tools: Any | None = None,
+    model_for_supplied_case: Any | None = None,
 ) -> Any:
     """Build the bounded assessment/model/tool loop for audit readiness."""
 
     model = chat_model or create_chat_model()
     bound_model = model_with_tools or model.bind_tools(list(tools))
+    # Not really going to need to bind the model to tools here for most situations, but this 'OR' does allow for tests to run easier and spiltting subgraph from parent later
+    supplied_case_model = model_for_supplied_case or model.bind_tools(
+        [tool for tool in tools if tool.name != "get_case_facts"]
+    )
 
     def assess_audit_readiness(
         state: AuditReadinessSubgraphState,
@@ -194,7 +199,13 @@ def build_audit_readiness_subgraph(
     builder.add_node(AUDIT_READINESS_STAGE, assess_audit_readiness)
     builder.add_node("check_evidence_gaps", check_evidence_gaps)
     builder.add_node("prepare_gap_research", prepare_gap_research)
-    builder.add_node("model", create_model_node(bound_model))
+    builder.add_node(
+        "model",
+        create_model_node(
+            bound_model,
+            model_for_supplied_case=supplied_case_model,
+        ),
+    )
     builder.add_node("tools", ToolNode(list(tools)))
     builder.add_edge(START, AUDIT_READINESS_STAGE)
     builder.add_edge(AUDIT_READINESS_STAGE, "check_evidence_gaps")

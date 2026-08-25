@@ -29,3 +29,18 @@ The initial emergency-procurement evaluation dataset is under `data/cases/`:
 - `manifest.json` — index connecting each input case to its answer key
 
 Do not include files from `expected/` in the agent's context during an evaluation run.
+
+## Gradio interface
+
+After installing the project dependencies and setting `OPENAI_API_KEY` in
+`.env`, launch the initial text-input interface with:
+
+```bash
+procurement-advisor-ui
+```
+
+The chat interface accepts a description of an emergency situation and
+multiple file attachments, then submits the known case information to the
+existing LangGraph assessment workflow as an `EmergencyCaseInput`. Uploaded
+filenames are recorded, but attachment content extraction is not implemented
+yet.

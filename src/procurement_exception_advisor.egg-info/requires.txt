@@ -1,4 +1,5 @@
 chromadb<2,>=1
+gradio<7,>=6
 langchain-openai<2,>=1
 langgraph<2,>=1
 mcp<3,>=2
