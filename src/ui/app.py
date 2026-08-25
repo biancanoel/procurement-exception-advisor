@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
 import gradio as gr
 from dotenv import load_dotenv
 
-from graph.workflow import run_graph
+from graph.workflow import run_graph, stream_graph
 from models.cases import AvailableDocument, EmergencyCaseInput
 
 
@@ -112,6 +113,59 @@ def respond_to_message(
     return str(response.content)
 
 
+def stream_response_to_message(
+    message: dict[str, Any],
+    history: list[dict[str, Any]],
+) -> Iterator[str]:
+    """Stream concise workflow progress before yielding the final assessment."""
+
+    current_text = str(message.get("text", "")).strip()
+    prior_text = _text_from_user_history(history)
+    description_parts = [*prior_text, current_text] if current_text else prior_text
+    if not description_parts:
+        raise ValueError("Emergency description must not be blank")
+
+    files = [
+        *_files_from_user_history(history),
+        *list(message.get("files") or []),
+    ]
+    case_input = EmergencyCaseInput(
+        description="\n\n".join(description_parts),
+        available_documents=_available_documents(files),
+    )
+
+    yield (
+        "Review started — verifying whether the situation qualifies as an "
+        "emergency procurement…"
+    )
+    for node_name, update in stream_graph(
+        "Evaluate the supplied emergency procurement situation.",
+        case_input=case_input,
+    ):
+        if node_name == "emergency_verification_subagent":
+            verification = update.get("emergency_verification")
+            if (
+                verification is not None
+                and verification.emergency_is_verified is True
+            ):
+                yield (
+                    "Emergency verified — reviewing whether the procurement "
+                    "file is audit-ready…"
+                )
+            else:
+                yield (
+                    "Emergency verification complete — preparing the "
+                    "assessment…"
+                )
+        elif node_name == "audit_readiness_subagent":
+            yield "Audit-readiness review complete — preparing the assessment…"
+        elif node_name == "finalize_assessment":
+            messages = update.get("messages", [])
+            if not messages:
+                raise RuntimeError("graph finalization returned no response")
+            yield str(messages[-1].content)
+
+
 def evaluate_description(description: str) -> str:
     """Preserve the original text-only handler for programmatic callers."""
 
@@ -132,7 +186,7 @@ def build_app() -> gr.Blocks:
             "during the assessment. Attachment contents are not parsed yet."
         )
         gr.ChatInterface(
-            fn=respond_to_message,
+            fn=stream_response_to_message,
             multimodal=True,
             chatbot=gr.Chatbot(
                 label="Procurement advisor",

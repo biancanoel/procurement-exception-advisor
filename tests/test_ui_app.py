@@ -5,7 +5,12 @@ import pytest
 from langchain_core.messages import AIMessage
 
 from models.cases import EmergencyCaseInput
-from ui.app import build_app, evaluate_description, respond_to_message
+from ui.app import (
+    build_app,
+    evaluate_description,
+    respond_to_message,
+    stream_response_to_message,
+)
 
 
 def test_evaluate_description_passes_dynamic_case_to_graph(
@@ -101,6 +106,44 @@ def test_chat_handler_preserves_text_and_attachment_names(
 def test_evaluate_description_rejects_blank_input() -> None:
     with pytest.raises(ValueError, match="must not be blank"):
         evaluate_description("   ")
+
+
+def test_chat_handler_streams_stage_progress_and_final_response(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Verification:
+        emergency_is_verified = True
+
+    def fake_stream_graph(
+        question: str,
+        *,
+        case_input: EmergencyCaseInput,
+    ):
+        assert question == "Evaluate the supplied emergency procurement situation."
+        assert case_input.description == "A critical pump failed."
+        yield (
+            "emergency_verification_subagent",
+            {"emergency_verification": Verification()},
+        )
+        yield "audit_readiness_subagent", {}
+        yield (
+            "finalize_assessment",
+            {"messages": [AIMessage(content="## Final assessment")]},
+        )
+
+    monkeypatch.setattr("ui.app.stream_graph", fake_stream_graph)
+
+    updates = list(
+        stream_response_to_message(
+            {"text": "A critical pump failed.", "files": []},
+            [],
+        )
+    )
+
+    assert updates[0].startswith("Review started")
+    assert updates[1].startswith("Emergency verified")
+    assert updates[2].startswith("Audit-readiness review complete")
+    assert updates[-1] == "## Final assessment"
 
 
 def test_build_app_has_multimodal_chat_components() -> None:

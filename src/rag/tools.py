@@ -19,7 +19,7 @@ from integrations.usaspending_mcp import call_search_awards
 @tool
 def search_procurement_rules(
     query: str,
-    top_k: int = 5,
+    top_k: int = 4,
 ) -> list[RetrievalResult]:
     """Search procurement rules using existing authority-aware retrieval and diversified chunks (MMR)."""
 

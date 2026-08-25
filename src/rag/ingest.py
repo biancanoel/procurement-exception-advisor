@@ -24,6 +24,9 @@ DEFAULT_ORDINANCE_TEXT_PATH = Path(
 DEFAULT_MUNICIPAL_CODE_DOCX_PATH = Path(
     "data/policies/santa_monica/SM Municipal Code.docx"
 )
+DEFAULT_BIDDING_THRESHOLDS_DOCX_PATH = Path(
+    "data/policies/santa_monica/Bidding Thresholds.docx"
+)
 DEFAULT_CALIFORNIA_PCC_1102_PATH = Path(
     "data/policies/california/PCC_1102.pdf"
 )
@@ -522,6 +525,23 @@ def santa_monica_municipal_code_metadata(
         agency="City of Santa Monica",
         document_type="municipal_code",
         authority_level="local_law",
+        source_path=str(docx_path),
+    )
+
+
+def santa_monica_bidding_thresholds_metadata(
+    docx_path: str | Path,
+) -> ProcurementDocumentMetadata:
+    """Return metadata for Santa Monica's procurement threshold guidance."""
+
+    return ProcurementDocumentMetadata(
+        document_id="SM-BIDDING-THRESHOLDS",
+        title="City of Santa Monica Bidding Thresholds",
+        jurisdiction="Santa Monica, California",
+        agency="City of Santa Monica",
+        document_type="procurement_policy",
+        subject="procurement classification and solicitation thresholds",
+        authority_level="procurement_policy",
         source_path=str(docx_path),
     )
 

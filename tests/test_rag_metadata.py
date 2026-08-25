@@ -51,6 +51,18 @@ def test_metadata_supports_document_level_records() -> None:
     assert metadata.page is None
 
 
+def test_metadata_preserves_optional_subject() -> None:
+    metadata = ProcurementDocumentMetadata.model_validate(
+        make_metadata(
+            subject="procurement classification and solicitation thresholds"
+        )
+    )
+
+    assert metadata.subject == (
+        "procurement classification and solicitation thresholds"
+    )
+
+
 def test_metadata_rejects_non_positive_page() -> None:
     with pytest.raises(ValidationError):
         ProcurementDocumentMetadata.model_validate(make_metadata(page=0))

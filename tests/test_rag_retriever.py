@@ -70,6 +70,7 @@ def make_chunk() -> DocumentChunk:
             jurisdiction="California",
             agency="City of Santa Monica",
             document_type="emergency_declaration",
+            subject="emergency procurement authority",
             authority_level="local_executive_order",
             exception_type="emergency",
             section="8.",
@@ -112,6 +113,7 @@ def test_indexing_stores_chunk_embedding_text_and_metadata() -> None:
     assert record["embedding"]
     assert record["metadata"]["section"] == "8."
     assert record["metadata"]["page"] == 9
+    assert record["metadata"]["subject"] == "emergency procurement authority"
 
 
 def test_reindexing_same_chunk_does_not_duplicate_or_reembed() -> None:
@@ -143,6 +145,7 @@ def test_retrieval_returns_required_policy_fields() -> None:
     assert results[0].semantic_similarity == 0.875
     assert results[0].rerank_score > 0
     assert results[0].authority_level == "local_executive_order"
+    assert results[0].subject == "emergency procurement authority"
     assert results[0].section == "8."
     assert results[0].page == 9
     assert results[0].page_end == 9
@@ -349,6 +352,33 @@ def test_rebuild_replaces_existing_chroma_collection(tmp_path) -> None:
     rebuilt = get_collection(db_path=tmp_path, rebuild=True)
 
     assert rebuilt.count() == 0
+
+
+def test_get_collection_reuses_persistent_client(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    import chromadb
+
+    clients: list[object] = []
+    collection = object()
+
+    class FakeClient:
+        def get_or_create_collection(self, **kwargs):
+            return collection
+
+    def fake_persistent_client(*, path: str):
+        clients.append(FakeClient())
+        return clients[-1]
+
+    monkeypatch.setattr(chromadb, "PersistentClient", fake_persistent_client)
+
+    first = get_collection(db_path=tmp_path / "cached-chroma")
+    second = get_collection(db_path=tmp_path / "cached-chroma")
+
+    assert first is collection
+    assert second is collection
+    assert len(clients) == 1
 
 
 def make_result(

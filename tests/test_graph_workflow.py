@@ -29,6 +29,8 @@ from graph.emergency_verification_subagent import (
     EmergencyVerificationNodeUpdate,
     build_emergency_verification_subgraph,
     emergency_verification,
+    emergency_verification_tools,
+    route_emergency_verification_entry,
     route_emergency_verification_gaps,
 )
 from graph.shared import (
@@ -43,6 +45,7 @@ from graph.workflow import (
     finalize_assessment,
     route_after_emergency_verification,
     run_graph,
+    stream_graph,
 )
 from models.assessment import (
     AuditRisk,
@@ -55,7 +58,11 @@ from models.assessment import (
 )
 from models.cases import EmergencyCaseInput
 from models.criteria import CriterionStatus
-from rag.tools import get_case_facts
+from rag.tools import (
+    get_case_facts,
+    search_government_awards,
+    search_procurement_rules,
+)
 
 
 @tool
@@ -415,6 +422,32 @@ def test_emergency_verification_is_a_compiled_subgraph() -> None:
     } <= set(subgraph.nodes)
 
 
+def test_supplied_case_enters_directly_at_emergency_verification() -> None:
+    case = EmergencyCaseInput(description="A critical pump failed.")
+
+    assert route_emergency_verification_entry(
+        {"messages": [HumanMessage(content="Evaluate")], "case_input": case}
+    ) == EMERGENCY_VERIFICATION_STAGE
+    assert route_emergency_verification_entry(
+        {"messages": [HumanMessage(content="Evaluate")], "case_input": None}
+    ) == "model"
+
+
+def test_emergency_verification_excludes_government_award_search() -> None:
+    selected = emergency_verification_tools(
+        [
+            search_procurement_rules,
+            get_case_facts,
+            search_government_awards,
+        ]
+    )
+
+    assert [tool.name for tool in selected] == [
+        "search_procurement_rules",
+        "get_case_facts",
+    ]
+
+
 def test_audit_readiness_is_a_compiled_subgraph() -> None:
     subgraph = build_audit_readiness_subgraph(
         chat_model=FakeChatModel([]),
@@ -620,10 +653,7 @@ def test_parent_graph_evaluates_dynamic_case_input_without_case_tool() -> None:
         )
     )
     rejected = verification(False).model_copy(update={"case_id": case.case_id})
-    model = FakeChatModel(
-        [AIMessage(content="No preliminary tool call is needed.")],
-        [rejected],
-    )
+    model = FakeChatModel([], [rejected])
 
     result = build_graph(
         chat_model=model,
@@ -641,12 +671,13 @@ def test_parent_graph_evaluates_dynamic_case_input_without_case_tool() -> None:
 
     assert result["case_input"] == case
     assert result["emergency_verification"].case_id == case.case_id
-    assert case.description in model.bound_model.inputs[0][0].content
-    assert "do not call get_case_facts" in model.bound_model.inputs[0][0].content
+    assert model.bound_model.inputs == []
     assert [
         [tool.name for tool in tool_set]
         for tool_set in model.bound_tool_sets
     ] == [
+        ["get_case_facts", "example_lookup"],
+        ["example_lookup"],
         ["get_case_facts", "example_lookup"],
         ["example_lookup"],
     ]
@@ -654,6 +685,34 @@ def test_parent_graph_evaluates_dynamic_case_input_without_case_tool() -> None:
         isinstance(message, ToolMessage) and message.name == "get_case_facts"
         for message in result["messages"]
     )
+
+
+def test_stream_graph_yields_parent_node_updates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    final = AIMessage(content="Assessment complete.")
+
+    class FakeGraph:
+        def stream(self, state: dict[str, Any], *, stream_mode: str):
+            assert state["case_input"].description == "A pump failed."
+            assert stream_mode == "updates"
+            yield {
+                "emergency_verification_subagent": {
+                    "emergency_verification": verification(False)
+                }
+            }
+            yield {"finalize_assessment": {"messages": [final]}}
+
+    monkeypatch.setattr("graph.workflow.build_graph", lambda **kwargs: FakeGraph())
+    case = EmergencyCaseInput(description="A pump failed.")
+
+    updates = list(stream_graph("Evaluate", case_input=case))
+
+    assert [node for node, _ in updates] == [
+        "emergency_verification_subagent",
+        "finalize_assessment",
+    ]
+    assert updates[-1][1]["messages"] == [final]
 
 
 def test_check_evidence_gaps_inspects_only_current_stage() -> None:

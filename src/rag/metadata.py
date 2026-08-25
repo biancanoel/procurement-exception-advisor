@@ -26,6 +26,7 @@ class ProcurementDocumentMetadata(BaseModel):
     jurisdiction: str = Field(min_length=1)
     agency: str = Field(min_length=1)
     document_type: str = Field(min_length=1)
+    subject: str | None = Field(default=None, min_length=1)
     effective_date: date | None = None
     authority_level: str = Field(min_length=1)
     exception_type: str | None = Field(default=None, min_length=1)

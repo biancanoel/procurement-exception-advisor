@@ -106,7 +106,7 @@ def test_search_procurement_rules_uses_default_top_k(monkeypatch) -> None:
     results = search_procurement_rules.invoke({"query": "emergency rules"})
 
     assert results == []
-    assert captured == {"query": "emergency rules", "top_k": 5}
+    assert captured == {"query": "emergency rules", "top_k": 4}
 
 
 def make_case() -> EmergencyCaseInput:

@@ -6,6 +6,7 @@ import zipfile
 import pytest
 
 from rag.ingest import (
+    DEFAULT_BIDDING_THRESHOLDS_DOCX_PATH,
     california_pcc_1102_metadata,
     chunk_page_text,
     clean_page_text,
@@ -13,6 +14,7 @@ from rag.ingest import (
     ingest_page_marked_text,
     ingest_pdf,
     santa_monica_metadata,
+    santa_monica_bidding_thresholds_metadata,
     santa_monica_municipal_code_metadata,
     santa_monica_ordinance_metadata,
 )
@@ -290,6 +292,40 @@ def test_municipal_code_metadata_uses_canonical_local_law() -> None:
 
     assert metadata.authority_level == "local_law"
     assert metadata.document_type == "municipal_code"
+
+
+def test_bidding_threshold_metadata_uses_procurement_policy_authority() -> None:
+    metadata = santa_monica_bidding_thresholds_metadata(
+        "Bidding Thresholds.docx"
+    )
+
+    assert metadata.document_id == "SM-BIDDING-THRESHOLDS"
+    assert metadata.jurisdiction == "Santa Monica, California"
+    assert metadata.agency == "City of Santa Monica"
+    assert metadata.authority_level == "procurement_policy"
+    assert metadata.subject == (
+        "procurement classification and solicitation thresholds"
+    )
+
+
+def test_bidding_threshold_document_is_ingested_into_one_coherent_chunk() -> None:
+    metadata = santa_monica_bidding_thresholds_metadata(
+        DEFAULT_BIDDING_THRESHOLDS_DOCX_PATH
+    )
+
+    page_count, chunks = ingest_docx(
+        DEFAULT_BIDDING_THRESHOLDS_DOCX_PATH,
+        metadata,
+    )
+
+    assert page_count == 1
+    assert len(chunks) == 1
+    assert chunks[0].metadata.document_id == "SM-BIDDING-THRESHOLDS"
+    assert chunks[0].metadata.subject == (
+        "procurement classification and solicitation thresholds"
+    )
+    assert "Informal Proposal: $25,000-$95,000" in chunks[0].text
+    assert "Informal Bid: $25,000-$250,000" in chunks[0].text
 
 
 def test_california_statute_metadata_is_statewide_and_canonical() -> None:

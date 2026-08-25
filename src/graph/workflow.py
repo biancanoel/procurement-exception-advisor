@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from typing import Any
 
 from langchain_core.messages import AIMessage, HumanMessage
@@ -23,6 +23,7 @@ from graph.audit_readiness_subagent import (
 from graph.emergency_verification_subagent import (
     build_emergency_verification_subgraph,
     create_emergency_verification_subagent_node,
+    emergency_verification_tools,
 )
 from graph.shared import (
     AUDIT_READINESS_STAGE,
@@ -270,25 +271,36 @@ def build_graph(
     """Build the parent graph around the emergency-verification sub-agent."""
 
     model = chat_model or create_chat_model()
-    model_with_tools = model.bind_tools(list(tools))
-    model_for_supplied_case = model.bind_tools(
-        [tool for tool in tools if tool.name != "get_case_facts"]
+    # Removing get_case_facts from the emergency verification subagent tools since we alreaddt have case facts from gradio. Keeping get_case_facts so we can still use test cases
+    verification_tools = emergency_verification_tools(tools)
+    verification_model_with_tools = model.bind_tools(verification_tools)
+    verification_model_for_supplied_case = model.bind_tools(
+        [
+            tool
+            for tool in verification_tools
+            if tool.name != "get_case_facts"
+        ]
     )
     verification_subgraph = build_emergency_verification_subgraph(
         chat_model=model,
-        tools=tools,
-        model_with_tools=model_with_tools,
-        model_for_supplied_case=model_for_supplied_case,
+        tools=verification_tools,
+        model_with_tools=verification_model_with_tools,
+        model_for_supplied_case=verification_model_for_supplied_case,
     )
 
     run_emergency_verification_subagent = (
         create_emergency_verification_subagent_node(verification_subgraph)
     )
+    # Removing get_case_facts from the audit readiness subagent tools since we alreaddt have case facts from gradio. Keeping get_case_facts so we can still use test cases
+    audit_model_with_tools = model.bind_tools(list(tools))
+    audit_model_for_supplied_case = model.bind_tools(
+        [tool for tool in tools if tool.name != "get_case_facts"]
+    )
     audit_subgraph = build_audit_readiness_subgraph(
         chat_model=model,
         tools=tools,
-        model_with_tools=model_with_tools,
-        model_for_supplied_case=model_for_supplied_case,
+        model_with_tools=audit_model_with_tools,
+        model_for_supplied_case=audit_model_for_supplied_case,
     )
     run_audit_readiness_subagent = create_audit_readiness_subagent_node(
         audit_subgraph
@@ -318,6 +330,47 @@ def build_graph(
     return builder.compile()
 
 
+def _initial_graph_state(
+    question: str,
+    case_input: EmergencyCaseInput | None,
+) -> dict[str, Any]:
+    """Create the shared initial state used by synchronous and streamed runs."""
+
+    return {
+        "messages": [HumanMessage(content=question)],
+        "case_input": case_input,
+        "emergency_verification": None,
+        "audit_readiness": None,
+        "assessment": None,
+        "assessment_stage": EMERGENCY_VERIFICATION_STAGE,
+        "research_rounds": 0,
+        "max_research_rounds": MAX_RESEARCH_ROUNDS,
+        "gap_research_active": False,
+        "gap_research_tools_used": False,
+    }
+
+
+def stream_graph(
+    question: str,
+    *,
+    case_input: EmergencyCaseInput | None = None,
+    chat_model: Any | None = None,
+    tools: Sequence[BaseTool] = AVAILABLE_TOOLS,
+) -> Iterator[tuple[str, Mapping[str, Any]]]:
+    """Yield parent-node updates so interfaces can display stage progress."""
+
+    if not question.strip():
+        raise ValueError("question must not be blank")
+
+    graph = build_graph(chat_model=chat_model, tools=tools)
+    for update in graph.stream(
+        _initial_graph_state(question, case_input),
+        stream_mode="updates",
+    ):
+        for node_name, node_update in update.items():
+            yield node_name, node_update
+
+
 def run_graph(
     question: str,
     *,
@@ -331,18 +384,7 @@ def run_graph(
         raise ValueError("question must not be blank")
 
     result = build_graph(chat_model=chat_model, tools=tools).invoke(
-        {
-            "messages": [HumanMessage(content=question)],
-            "case_input": case_input,
-            "emergency_verification": None,
-            "audit_readiness": None,
-            "assessment": None,
-            "assessment_stage": EMERGENCY_VERIFICATION_STAGE,
-            "research_rounds": 0,
-            "max_research_rounds": MAX_RESEARCH_ROUNDS,
-            "gap_research_active": False,
-            "gap_research_tools_used": False,
-        }
+        _initial_graph_state(question, case_input)
     )
     final_message = result["messages"][-1]
     if not isinstance(final_message, AIMessage):

@@ -37,6 +37,11 @@ from models.assessment import (
 from models.cases import EmergencyCaseInput
 from rag.tool_call_demo import AVAILABLE_TOOLS
 
+# Emergency veridication doesnt need to use the search_government_awards tool since it is not relevant to determining whether an emergency exists. It is only relevant for audit readiness.
+EXCLUDED_EMERGENCY_VERIFICATION_TOOLS = frozenset(
+    {"search_government_awards"}
+)
+
 
 EMERGENCY_VERIFICATION_PROMPT = f"""You determine whether a situation justifies the use of an
 emergency procurement using only the supplied case facts, document
@@ -176,6 +181,28 @@ def route_emergency_verification_gaps(
     return "complete"
 
 
+def route_emergency_verification_entry(
+    state: EmergencyVerificationSubgraphState,
+) -> str:
+    """Skip preliminary model research when case facts are already supplied."""
+
+    if case_from_state(state) is not None:
+        return EMERGENCY_VERIFICATION_STAGE
+    return "model"
+
+
+def emergency_verification_tools(
+    tools: Sequence[BaseTool],
+) -> list[BaseTool]:
+    """Return only tools relevant to determining whether an emergency exists."""
+
+    return [
+        tool
+        for tool in tools
+        if tool.name not in EXCLUDED_EMERGENCY_VERIFICATION_TOOLS
+    ]
+
+
 def build_emergency_verification_subgraph(
     *,
     chat_model: Any | None = None,
@@ -186,10 +213,11 @@ def build_emergency_verification_subgraph(
     """Build the bounded model/tool/research loop for emergency verification."""
 
     model = chat_model or create_chat_model()
-    bound_model = model_with_tools or model.bind_tools(list(tools))
+    stage_tools = emergency_verification_tools(tools)
+    bound_model = model_with_tools or model.bind_tools(stage_tools)
     # Not really going to need to bind the model to tools here for most situations, but this 'OR'does allow for tests to run easier and spiltting subgraph from parent later
     supplied_case_model = model_for_supplied_case or model.bind_tools(
-        [tool for tool in tools if tool.name != "get_case_facts"]
+        [tool for tool in stage_tools if tool.name != "get_case_facts"]
     )
 
     def verify_emergency(
@@ -205,11 +233,18 @@ def build_emergency_verification_subgraph(
             model_for_supplied_case=supplied_case_model,
         ),
     )
-    builder.add_node("tools", ToolNode(list(tools)))
+    builder.add_node("tools", ToolNode(stage_tools))
     builder.add_node(EMERGENCY_VERIFICATION_STAGE, verify_emergency)
     builder.add_node("check_evidence_gaps", check_evidence_gaps)
     builder.add_node("prepare_gap_research", prepare_gap_research)
-    builder.add_edge(START, "model")
+    builder.add_conditional_edges(
+        START,
+        route_emergency_verification_entry,
+        {
+            "model": "model",
+            EMERGENCY_VERIFICATION_STAGE: EMERGENCY_VERIFICATION_STAGE,
+        },
+    )
     builder.add_conditional_edges(
         "model",
         route_model_response,

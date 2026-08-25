@@ -6,11 +6,13 @@ import argparse
 import os
 import re
 from pathlib import Path
+from threading import Lock
 from typing import Any, Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from rag.ingest import (
+    DEFAULT_BIDDING_THRESHOLDS_DOCX_PATH,
     DEFAULT_CALIFORNIA_PCC_1102_PATH,
     DEFAULT_MUNICIPAL_CODE_DOCX_PATH,
     DEFAULT_ORDINANCE_TEXT_PATH,
@@ -19,6 +21,7 @@ from rag.ingest import (
     ingest_docx,
     ingest_page_marked_text,
     ingest_pdf,
+    santa_monica_bidding_thresholds_metadata,
     santa_monica_metadata,
     santa_monica_municipal_code_metadata,
     santa_monica_ordinance_metadata,
@@ -41,6 +44,10 @@ AUTHORITY_PRIORITY = {
     "administrative_instruction": 2,
     "local_executive_order": 1,
 }
+
+
+_CHROMA_CLIENTS: dict[str, Any] = {}
+_CHROMA_CLIENT_LOCK = Lock()
 
 
 class EmbeddingProvider(Protocol):
@@ -100,6 +107,7 @@ class RetrievalResult(BaseModel):
     document_id: str
     authority_level: str
     jurisdiction: str
+    subject: str | None = None
     section: str | None = None
     page: int | None = Field(default=None, ge=1)
     page_end: int | None = Field(default=None, ge=1)
@@ -130,17 +138,42 @@ def get_collection(
     import chromadb
     from chromadb.errors import NotFoundError
 
-    client = chromadb.PersistentClient(path=str(db_path))
-    if rebuild:
-        try:
-            client.delete_collection(collection_name)
-        except NotFoundError:
-            pass
-    return client.get_or_create_collection(
-        name=collection_name,
-        configuration={"hnsw": {"space": "cosine"}},
-        embedding_function=None,
-    )
+    # Use one canonical path as the cache key. This prevents values such as
+    # ".chroma" and "/project/.chroma" from creating separate clients for the
+    # same on-disk database.
+    resolved_db_path = str(Path(db_path).expanduser().resolve())
+
+    # Chroma maintains its own process-wide registry of persistent systems.
+    # LangGraph may execute tool calls in worker threads, so client lookup and
+    # creation must be atomic to avoid two threads initializing the same Chroma
+    # system at once.
+    with _CHROMA_CLIENT_LOCK:
+        client = _CHROMA_CLIENTS.get(resolved_db_path)
+        if client is None:
+            client = chromadb.PersistentClient(path=resolved_db_path)
+
+            # Retain the owning client for the life of this process. Returning
+            # only the collection and allowing the client to be garbage-
+            # collected can remove Chroma's shared system while another tool
+            # call is still using or initializing it.
+            _CHROMA_CLIENTS[resolved_db_path] = client
+
+        # Rebuilding is used by the indexing command. A missing collection is
+        # expected on the first build, so there is nothing to delete in that
+        # case.
+        if rebuild:
+            try:
+                client.delete_collection(collection_name)
+            except NotFoundError:
+                pass
+
+        # Existing collections are opened unchanged; otherwise Chroma creates
+        # one configured for cosine distance and caller-supplied embeddings.
+        return client.get_or_create_collection(
+            name=collection_name,
+            configuration={"hnsw": {"space": "cosine"}},
+            embedding_function=None,
+        )
 
 
 def _chroma_metadata(chunk: DocumentChunk) -> dict[str, str | int | float | bool]:
@@ -261,6 +294,7 @@ def _retrieve_semantic_candidates(
             document_id=metadata["document_id"],
             authority_level=metadata["authority_level"],
             jurisdiction=metadata["jurisdiction"],
+            subject=metadata.get("subject"),
             section=metadata.get("section"),
             page=metadata.get("page"),
             page_end=metadata.get("page_end", metadata.get("page")),
@@ -488,6 +522,11 @@ def index_main() -> None:
         default=DEFAULT_MUNICIPAL_CODE_DOCX_PATH,
     )
     parser.add_argument(
+        "--bidding-thresholds-docx",
+        type=Path,
+        default=DEFAULT_BIDDING_THRESHOLDS_DOCX_PATH,
+    )
+    parser.add_argument(
         "--california-pcc-1102",
         type=Path,
         default=DEFAULT_CALIFORNIA_PCC_1102_PATH,
@@ -512,6 +551,12 @@ def index_main() -> None:
         args.municipal_code_docx,
         santa_monica_municipal_code_metadata(args.municipal_code_docx),
     )
+    _, bidding_threshold_chunks = ingest_docx(
+        args.bidding_thresholds_docx,
+        santa_monica_bidding_thresholds_metadata(
+            args.bidding_thresholds_docx
+        ),
+    )
     _, california_statute_chunks = ingest_pdf(
         args.california_pcc_1102,
         california_pcc_1102_metadata(args.california_pcc_1102),
@@ -520,6 +565,7 @@ def index_main() -> None:
         emergency_chunks
         + ordinance_chunks
         + municipal_code_chunks
+        + bidding_threshold_chunks
         + california_statute_chunks
     )
     added = index_chunks(
@@ -529,7 +575,7 @@ def index_main() -> None:
     )
     print(
         f"Indexed {added} new chunks "
-        f"({len(chunks)} total across 4 documents)."
+        f"({len(chunks)} total across 5 documents)."
     )
 
 
