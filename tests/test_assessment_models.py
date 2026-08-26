@@ -23,14 +23,12 @@ VERIFICATION_IDS = (
 AUDIT_IDS = (
     "purchase_classification",
     "threshold_and_funding",
-    "limited_scope",
+    "appropriate_response_scope",
     "vendor_selection",
     "price_reasonableness",
     "approval_authority",
     "remaining_compliance_requirements",
-    "documentation_complete",
     "post_facto_formalization",
-    "necessary_response",
 )
 
 
@@ -296,7 +294,7 @@ def test_affirmative_adverse_evidence_can_support_negative_finding() -> None:
     assert result.missing_evidence == ["Written procurement file determination"]
 
 
-def test_audit_readiness_assessment_accepts_ten_results() -> None:
+def test_audit_readiness_assessment_accepts_eight_results() -> None:
     assessment = AuditReadinessAssessment(
         case_id="EM-001",
         recommendation=(
@@ -319,7 +317,7 @@ def test_audit_readiness_assessment_accepts_ten_results() -> None:
     )
 
     assert assessment.case_id == "EM-001"
-    assert len(assessment.criterion_results) == 10
+    assert len(assessment.criterion_results) == 8
 
 
 def test_audit_readiness_rejects_duplicate_criterion_ids() -> None:
@@ -351,7 +349,7 @@ def test_audit_readiness_rejects_duplicate_criterion_ids() -> None:
                         rationale="Supported.",
                         confidence=0.9,
                     )
-                    for criterion_id in AUDIT_IDS[:8]
+                    for criterion_id in AUDIT_IDS[:6]
                 ],
             ],
             overall_confidence=0.9,
@@ -394,7 +392,7 @@ def test_complete_assessment_nests_both_stage_results() -> None:
 
     assert assessment.emergency_verification is verification
     assert assessment.audit_readiness is audit
-    assert len(assessment.criterion_results) == 13
+    assert len(assessment.criterion_results) == 11
 
 
 def test_complete_assessment_rejects_audit_stage_without_verified_emergency() -> None:

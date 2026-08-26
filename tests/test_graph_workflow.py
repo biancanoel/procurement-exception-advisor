@@ -522,7 +522,7 @@ def test_emergency_verification_evaluates_only_three_criteria() -> None:
     assert "rules-call-001" in expected.source_ids_used
 
 
-def test_audit_readiness_evaluates_only_remaining_ten_and_combines_results() -> None:
+def test_audit_readiness_evaluates_only_remaining_eight_and_combines_results() -> None:
     expected = audit_assessment()
     model = FakeChatModel([], [expected])
     state = state_with_case()
@@ -532,11 +532,11 @@ def test_audit_readiness_evaluates_only_remaining_ten_and_combines_results() -> 
     update = audit_readiness(state, chat_model=model)
 
     assert update["audit_readiness"] is expected
-    assert len(expected.criterion_results) == 10
+    assert len(expected.criterion_results) == 8
     assert isinstance(update["assessment"], EmergencyProcurementAssessment)
     assert update["assessment"].emergency_verification is verified
     assert update["assessment"].audit_readiness is expected
-    assert len(update["assessment"].criterion_results) == 13
+    assert len(update["assessment"].criterion_results) == 11
     assert [
         result.criterion_id for result in update["assessment"].criterion_results
     ] == [
@@ -877,7 +877,7 @@ def test_finalizer_renders_all_verification_results_and_case_context() -> None:
 
 
 def test_finalizer_renders_audit_result_and_existing_checklist() -> None:
-    audit = audit_assessment(unresolved_id="documentation_complete")
+    audit = audit_assessment(unresolved_id="post_facto_formalization")
     audit.missing_documents = ["Signed emergency justification"]
     audit.required_approvals = ["City Manager approval"]
     audit.next_steps = ["Add the executed approval to the procurement file"]
@@ -908,7 +908,7 @@ def test_finalizer_renders_audit_result_and_existing_checklist() -> None:
     assert "## Audit readiness" in content
     assert "not yet audit-ready" in content
     assert "Recommendation: additional_evidence_required" in content
-    assert "documentation_complete" in content
+    assert "post_facto_formalization" in content
     assert "Status: insufficient evidence — criterion not passed" in content
     assert "Status: not_evaluated" not in content
     assert "Signed emergency justification" in content
@@ -1191,7 +1191,7 @@ def test_audit_subgraph_preserves_unresolvable_agency_evidence(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     unresolved_audit = audit_assessment(
-        unresolved_id="documentation_complete"
+        unresolved_id="post_facto_formalization"
     )
 
     def fake_audit(state: dict[str, Any], **_: Any) -> dict[str, Any]:
@@ -1230,7 +1230,7 @@ def test_audit_subgraph_preserves_unresolvable_agency_evidence(
     assert result["research_rounds"] == 1
     assert [
         item.criterion_id for item in result["unresolved_criteria"]
-    ] == ["documentation_complete"]
+    ] == ["post_facto_formalization"]
     assert result["messages"][-1] is no_tool_response
     assert not any(
         isinstance(message, ToolMessage)

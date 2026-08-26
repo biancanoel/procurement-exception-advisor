@@ -26,14 +26,12 @@ EXPECTED_EMERGENCY_CRITERION_IDS = [
 EXPECTED_AUDIT_CRITERION_IDS = [
     "purchase_classification",
     "threshold_and_funding",
-    "limited_scope",
+    "appropriate_response_scope",
     "vendor_selection",
     "price_reasonableness",
     "approval_authority",
     "remaining_compliance_requirements",
-    "documentation_complete",
     "post_facto_formalization",
-    "necessary_response",
 ]
 
 
@@ -51,14 +49,14 @@ def test_returns_all_emergency_criteria_in_order() -> None:
 def test_returns_all_audit_readiness_criteria_in_order() -> None:
     criteria = get_audit_readiness_criteria()
 
-    assert len(criteria) == get_audit_readiness_criteria_count() == 10
+    assert len(criteria) == get_audit_readiness_criteria_count() == 8
     assert [
         criterion.criterion_id
         for criterion in criteria
     ] == EXPECTED_AUDIT_CRITERION_IDS
 
 
-def test_procurement_criteria_partition_covers_all_thirteen() -> None:
+def test_procurement_criteria_partition_covers_all_eleven() -> None:
     emergency_ids = {
         criterion.criterion_id for criterion in get_emergency_criteria()
     }
@@ -70,7 +68,7 @@ def test_procurement_criteria_partition_covers_all_thirteen() -> None:
     ]
 
     assert emergency_ids.isdisjoint(audit_ids)
-    assert get_procurement_criteria_count() == 13
+    assert get_procurement_criteria_count() == 11
     assert all_ids == (
         EXPECTED_EMERGENCY_CRITERION_IDS + EXPECTED_AUDIT_CRITERION_IDS
     )
@@ -155,3 +153,20 @@ def test_approval_authority_does_not_allow_partial_support() -> None:
     )
 
     assert criterion.allows_partial_support is False
+
+
+def test_appropriate_response_scope_replaces_separate_response_criteria() -> None:
+    criterion = get_audit_readiness_criterion(
+        "appropriate_response_scope"
+    )
+
+    assert criterion.description == (
+        "Determine whether the proposed purchase directly addresses the "
+        "emergency and whether its scope, quantity, value, and duration are "
+        "reasonably limited to what is necessary to prevent, reduce, "
+        "stabilize, or resolve the identified harm."
+    )
+    with pytest.raises(KeyError):
+        get_procurement_criterion("necessary_response")
+    with pytest.raises(KeyError):
+        get_procurement_criterion("limited_scope")

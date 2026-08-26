@@ -36,21 +36,13 @@
       ]
     },
     {
-      "criterion_id": "necessary_response",
-      "criterion": "Proposed response necessary",
-      "status": "supported",
-      "rationale": "Obtaining disinfectant is necessary to continue safe water treatment.",
+      "criterion_id": "appropriate_response_scope",
+      "criterion": "Response appropriate and limited in scope",
+      "status": "not_supported",
+      "rationale": "Obtaining disinfectant is necessary to continue safe water treatment, but the requested quantity is not described, so the record does not establish that the purchase is limited to the amount needed to bridge the disruption.",
       "evidence_document_ids": [
         "EM005-D02",
-        "EM005-D03"
-      ]
-    },
-    {
-      "criterion_id": "limited_scope",
-      "criterion": "Scope limited to emergency",
-      "status": "not_supported",
-      "rationale": "The requested quantity is not described, so the record does not establish that the purchase is limited to the amount needed to bridge the disruption.",
-      "evidence_document_ids": [
+        "EM005-D03",
         "EM005-D04"
       ]
     },

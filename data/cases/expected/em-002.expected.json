@@ -33,22 +33,13 @@
       "evidence_document_ids": []
     },
     {
-      "criterion_id": "necessary_response",
-      "criterion": "Proposed response necessary",
-      "status": "partially_supported",
-      "rationale": "Repair is necessary, but the record does not establish that complete cabinet replacement is the minimum required response.",
+      "criterion_id": "appropriate_response_scope",
+      "criterion": "Response appropriate and limited in scope",
+      "status": "not_supported",
+      "rationale": "Repair is necessary, but the record does not establish that complete cabinet replacement is technically required or limited to the minimum response needed.",
       "evidence_document_ids": [
         "EM002-D02",
         "EM002-D04"
-      ]
-    },
-    {
-      "criterion_id": "limited_scope",
-      "criterion": "Scope limited to emergency",
-      "status": "not_supported",
-      "rationale": "The quote is not supported by an assessment explaining why replacement rather than repair is required.",
-      "evidence_document_ids": [
-        "EM002-D02"
       ]
     },
     {

@@ -200,71 +200,46 @@ PROCUREMENT_CRITERIA: tuple[EmergencyCriterion, ...] = (
         ],
     ),
     EmergencyCriterion(
-        criterion_id="necessary_response",
-        name="Proposed action is necessary",
+        criterion_id="appropriate_response_scope",
+        name="Response is appropriate and limited in scope",
         description=(
-            "Determine whether the proposed purchase directly addresses "
-            "the emergency and is reasonably necessary to prevent or "
-            "reduce the identified harm."
+            "Determine whether the proposed purchase directly addresses the "
+            "emergency and whether its scope, quantity, value, and duration "
+            "are reasonably limited to what is necessary to prevent, reduce, "
+            "stabilize, or resolve the identified harm."
         ),
         questions_to_answer=[
             "How does the proposed purchase address the emergency?",
             "Is the proposed solution technically appropriate?",
-            "Are there less costly or less extensive alternatives?",
-            "Does the proposal include work unrelated to the immediate need?",
-        ],
-        expected_evidence=[
-            "Technical explanation of the proposed response",
-            "Vendor scope or quote",
-            "Alternative solutions considered",
-            "Connection between the proposed work and the emergency",
-        ],
-        preferred_evidence_types=[
-            EvidenceType.TECHNICAL_ASSESSMENT,
-            EvidenceType.QUOTE,
-            EvidenceType.MARKET_RESEARCH,
-        ],
-        risk_if_missing=(
-            "The agency may authorize a purchase that is unrelated, "
-            "unnecessary, or disproportionate to the emergency."
-        ),
-        human_review_triggers=[
-            "The proposed solution is substantially broader than the immediate need.",
-            "Technical evidence does not support the proposed solution.",
-            "A less extensive alternative appears available.",
-        ],
-    ),
-    EmergencyCriterion(
-        criterion_id="limited_scope",
-        name="Scope is limited to the emergency",
-        description=(
-            "Determine whether the requested scope, quantity, value, and "
-            "duration are limited to what is necessary to stabilize or "
-            "resolve the immediate emergency."
-        ),
-        questions_to_answer=[
             "Which parts of the proposed scope are required immediately?",
+            "Are there less costly or less extensive alternatives?",
             "Does the request include upgrades, future phases, or unrelated work?",
             "Could non-emergency work be separated and competitively procured?",
             "Is the requested contract term limited to the emergency period?",
             "Is the requested quantity limited to the amount needed to bridge the emergency?",
         ],
         expected_evidence=[
+            "Technical explanation connecting the response to the emergency",
             "Itemized scope",
             "Itemized pricing",
             "Emergency stabilization plan",
+            "Alternative solutions considered",
             "Explanation of proposed duration or quantity",
         ],
         preferred_evidence_types=[
             EvidenceType.QUOTE,
             EvidenceType.TECHNICAL_ASSESSMENT,
             EvidenceType.CONTRACT,
+            EvidenceType.MARKET_RESEARCH,
         ],
         risk_if_missing=(
-            "The emergency exception may be used to avoid competition for "
-            "planned improvements, excessive quantities, or long-term work."
+            "The agency may authorize a purchase that is unrelated, "
+            "unnecessary, disproportionate, or broader or longer than the "
+            "emergency requires."
         ),
         human_review_triggers=[
+            "Technical evidence does not support the proposed solution.",
+            "A less extensive alternative appears available.",
             "The proposal includes capital improvements unrelated to stabilization.",
             "The requested term extends beyond the expected emergency period.",
             "The vendor has not itemized emergency and non-emergency work.",
@@ -420,50 +395,6 @@ PROCUREMENT_CRITERIA: tuple[EmergencyCriterion, ...] = (
         ],
     ),
     EmergencyCriterion(
-        criterion_id="documentation_complete",
-        name="Audit file documentation",
-        description=(
-            "Determine whether the procurement file contains a complete, "
-            "contemporaneous record of the event, decision, evidence, "
-            "approvals, vendor selection, pricing, and follow-up actions."
-        ),
-        questions_to_answer=[
-            "Is there a written emergency justification?",
-            "Does the file include a clear timeline of events and decisions?",
-            "Are the applicable rules and approvals documented?",
-            "Are vendor selection and price reasonableness supported?",
-            "Are incident records, quotes, communications, invoices, and final acceptance records retained?",
-            "Does the documentation distinguish verified facts from unsupported assertions?",
-        ],
-        expected_evidence=[
-            "Written justification",
-            "Chronology of events",
-            "Applicable policy and legal authority",
-            "Approval records",
-            "Vendor selection records",
-            "Price analysis",
-            "Supporting incident and contract documents",
-        ],
-        preferred_evidence_types=[
-            EvidenceType.INCIDENT_REPORT,
-            EvidenceType.TIMELINE,
-            EvidenceType.APPROVAL_RECORD,
-            EvidenceType.QUOTE,
-            EvidenceType.PRICE_COMPARISON,
-            EvidenceType.POLICY,
-            EvidenceType.STATUTE,
-        ],
-        risk_if_missing=(
-            "The agency may be unable to defend the procurement during "
-            "an audit, protest, public-records review, or governing-body inquiry."
-        ),
-        human_review_triggers=[
-            "Material facts are supported only by undocumented verbal statements.",
-            "Required approvals or price analysis are absent.",
-            "The written justification was created long after the purchase.",
-        ],
-    ),
-    EmergencyCriterion(
         criterion_id="post_facto_formalization",
         name="Post-event formalization",
         description=(
@@ -517,14 +448,12 @@ EMERGENCY_VERIFICATION_CRITERION_IDS = (
 AUDIT_READINESS_CRITERION_IDS = (
     "purchase_classification",
     "threshold_and_funding",
-    "limited_scope",
+    "appropriate_response_scope",
     "vendor_selection",
     "price_reasonableness",
     "approval_authority",
     "remaining_compliance_requirements",
-    "documentation_complete",
     "post_facto_formalization",
-    "necessary_response",
 )
 
 _CRITERIA_BY_ID = {
@@ -550,7 +479,7 @@ def get_emergency_criteria() -> tuple[EmergencyCriterion, ...]:
 
 
 def get_audit_readiness_criteria() -> tuple[EmergencyCriterion, ...]:
-    """Return the ten criteria used to evaluate audit readiness."""
+    """Return the eight criteria used to evaluate audit readiness."""
 
     return AUDIT_READINESS_CRITERIA
 

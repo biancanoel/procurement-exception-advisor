@@ -36,21 +36,12 @@
       ]
     },
     {
-      "criterion_id": "necessary_response",
-      "criterion": "Proposed response necessary",
+      "criterion_id": "appropriate_response_scope",
+      "criterion": "Response appropriate and limited in scope",
       "status": "supported",
-      "rationale": "Bypass pumping and immediate repair directly address the rupture and overflow risk.",
+      "rationale": "Bypass pumping and the described excavation, repair, restoration, and traffic-control scope directly address the rupture and are limited to restoring the failed facility.",
       "evidence_document_ids": [
         "EM001-D03",
-        "EM001-D04"
-      ]
-    },
-    {
-      "criterion_id": "limited_scope",
-      "criterion": "Scope limited to emergency",
-      "status": "supported",
-      "rationale": "The described scope consists of excavation, repair, restoration, and traffic control necessary to restore the failed facility.",
-      "evidence_document_ids": [
         "EM001-D04"
       ]
     },

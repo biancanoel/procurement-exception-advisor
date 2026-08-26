@@ -39,21 +39,12 @@
       ]
     },
     {
-      "criterion_id": "necessary_response",
-      "criterion": "Proposed response necessary",
-      "status": "partially_supported",
-      "rationale": "Weatherproofing and necessary repairs are supported, but no assessment establishes that total roof replacement and all upgrades are immediately necessary.",
+      "criterion_id": "appropriate_response_scope",
+      "criterion": "Response appropriate and limited in scope",
+      "status": "contradicted",
+      "rationale": "Weatherproofing and necessary repairs address the immediate need, but total roof replacement, skylights, upgraded insulation, undamaged gutters, and painting are not shown to be necessary to resolve the emergency.",
       "evidence_document_ids": [
         "EM004-D03",
-        "EM004-D04"
-      ]
-    },
-    {
-      "criterion_id": "limited_scope",
-      "criterion": "Scope limited to emergency",
-      "status": "contradicted",
-      "rationale": "Skylights, upgraded insulation, undamaged gutters, and painting are not shown to be necessary to address the immediate emergency.",
-      "evidence_document_ids": [
         "EM004-D04"
       ]
     },
