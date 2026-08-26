@@ -228,7 +228,7 @@ class AuditRisk(StrictModel):
 
 
 class AuditReadinessAssessment(StrictModel):
-    """Eight-criterion review of an emergency procurement file's readiness."""
+    """Six-criterion review of an emergency procurement file's readiness."""
 
     schema_version: str = "1.0"
 
@@ -243,8 +243,8 @@ class AuditReadinessAssessment(StrictModel):
     classification: str = Field(min_length=1)
 
     criterion_results: list[CriterionResult] = Field(
-        min_length=8,
-        max_length=8,
+        min_length=6,
+        max_length=6,
     )
 
     audit_risks: list[AuditRisk] = Field(

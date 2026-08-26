@@ -6,83 +6,6 @@ from models.criteria import (
 )
 PROCUREMENT_CRITERIA: tuple[EmergencyCriterion, ...] = (
     EmergencyCriterion(
-        criterion_id="purchase_classification",
-        name="Purchase classification",
-        description=(
-            "Determine what is being purchased and which legal or "
-            "policy framework applies, including whether the request "
-            "is a public project, supply purchase, service, equipment "
-            "purchase, or another procurement category."
-        ),
-        questions_to_answer=[
-            "What is being purchased, repaired, or replaced?",
-            "Is the request a public project, supply, equipment, service, or professional service?",
-            "Has work already started or has a vendor already been directed to proceed?",
-        ],
-        expected_evidence=[
-            "Description of the requested purchase or work",
-            "Estimated total cost",
-            "Funding source",
-            "Project or service classification",
-        ],
-        preferred_evidence_types=[
-            EvidenceType.USER_STATEMENT,
-            EvidenceType.TECHNICAL_ASSESSMENT,
-            EvidenceType.CONTRACT,
-        ],
-        risk_if_missing=(
-            "The agent may apply the wrong authority, approval path, "
-            "or emergency procedure."
-        ),
-        allows_partial_support=False,
-        human_review_triggers=[
-            "The purchase category is unclear.",
-            "The request combines multiple procurement categories.",
-            "Federal or grant funding may impose additional requirements.",
-        ],
-    ),
-    EmergencyCriterion(
-    criterion_id="threshold_and_funding",
-    name="Threshold and funding assessment",
-    description=(
-        "Determine the monetary tier, applicable competition threshold, "
-        "funding source, and whether grant requirements change the "
-        "emergency procurement procedure."
-    ),
-    questions_to_answer=[
-        "What is the total anticipated value of the purchase?",
-        "Which informal or formal procurement threshold applies?",
-        "Is the purchase being divided into phases or smaller amounts?",
-        "What is the funding source?",
-        "Are federal, state, grant, or restricted funds involved?",
-        "Do the funding terms impose stricter emergency requirements?",
-    ],
-    expected_evidence=[
-        "Estimated total acquisition value",
-        "Applicable purchasing threshold",
-        "Funding-source documentation",
-        "Grant agreement or award conditions",
-        "Applicable federal or state procurement requirements",
-    ],
-    preferred_evidence_types=[
-        EvidenceType.USER_STATEMENT,
-        EvidenceType.POLICY,
-        EvidenceType.STATUTE,
-        EvidenceType.CONTRACT,
-    ],
-    risk_if_missing=(
-        "The agent may apply the wrong purchasing method, approval level, "
-        "or funding requirements, creating audit or repayment risk."
-    ),
-    allows_partial_support=False,
-    human_review_triggers=[
-        "Federal or grant funding is involved.",
-        "The total anticipated value is unclear.",
-        "The purchase may have been divided to remain below a threshold.",
-        "Local and funding-source requirements appear inconsistent.",
-    ],
-),
-    EmergencyCriterion(
         criterion_id="unexpected_event",
         name="Unexpected or urgent event",
         description=(
@@ -446,8 +369,6 @@ EMERGENCY_VERIFICATION_CRITERION_IDS = (
 )
 
 AUDIT_READINESS_CRITERION_IDS = (
-    "purchase_classification",
-    "threshold_and_funding",
     "appropriate_response_scope",
     "vendor_selection",
     "price_reasonableness",
@@ -479,7 +400,7 @@ def get_emergency_criteria() -> tuple[EmergencyCriterion, ...]:
 
 
 def get_audit_readiness_criteria() -> tuple[EmergencyCriterion, ...]:
-    """Return the eight criteria used to evaluate audit readiness."""
+    """Return the six criteria used to evaluate audit readiness."""
 
     return AUDIT_READINESS_CRITERIA
 

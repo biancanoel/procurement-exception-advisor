@@ -24,8 +24,6 @@ EXPECTED_EMERGENCY_CRITERION_IDS = [
 ]
 
 EXPECTED_AUDIT_CRITERION_IDS = [
-    "purchase_classification",
-    "threshold_and_funding",
     "appropriate_response_scope",
     "vendor_selection",
     "price_reasonableness",
@@ -49,14 +47,14 @@ def test_returns_all_emergency_criteria_in_order() -> None:
 def test_returns_all_audit_readiness_criteria_in_order() -> None:
     criteria = get_audit_readiness_criteria()
 
-    assert len(criteria) == get_audit_readiness_criteria_count() == 8
+    assert len(criteria) == get_audit_readiness_criteria_count() == 6
     assert [
         criterion.criterion_id
         for criterion in criteria
     ] == EXPECTED_AUDIT_CRITERION_IDS
 
 
-def test_procurement_criteria_partition_covers_all_eleven() -> None:
+def test_procurement_criteria_partition_covers_all_nine() -> None:
     emergency_ids = {
         criterion.criterion_id for criterion in get_emergency_criteria()
     }
@@ -68,7 +66,7 @@ def test_procurement_criteria_partition_covers_all_eleven() -> None:
     ]
 
     assert emergency_ids.isdisjoint(audit_ids)
-    assert get_procurement_criteria_count() == 11
+    assert get_procurement_criteria_count() == 9
     assert all_ids == (
         EXPECTED_EMERGENCY_CRITERION_IDS + EXPECTED_AUDIT_CRITERION_IDS
     )
@@ -170,3 +168,7 @@ def test_appropriate_response_scope_replaces_separate_response_criteria() -> Non
         get_procurement_criterion("necessary_response")
     with pytest.raises(KeyError):
         get_procurement_criterion("limited_scope")
+    with pytest.raises(KeyError):
+        get_procurement_criterion("purchase_classification")
+    with pytest.raises(KeyError):
+        get_procurement_criterion("threshold_and_funding")

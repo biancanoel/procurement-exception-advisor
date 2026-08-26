@@ -522,7 +522,7 @@ def test_emergency_verification_evaluates_only_three_criteria() -> None:
     assert "rules-call-001" in expected.source_ids_used
 
 
-def test_audit_readiness_evaluates_only_remaining_eight_and_combines_results() -> None:
+def test_audit_readiness_evaluates_only_remaining_six_and_combines_results() -> None:
     expected = audit_assessment()
     model = FakeChatModel([], [expected])
     state = state_with_case()
@@ -532,11 +532,11 @@ def test_audit_readiness_evaluates_only_remaining_eight_and_combines_results() -
     update = audit_readiness(state, chat_model=model)
 
     assert update["audit_readiness"] is expected
-    assert len(expected.criterion_results) == 8
+    assert len(expected.criterion_results) == 6
     assert isinstance(update["assessment"], EmergencyProcurementAssessment)
     assert update["assessment"].emergency_verification is verified
     assert update["assessment"].audit_readiness is expected
-    assert len(update["assessment"].criterion_results) == 11
+    assert len(update["assessment"].criterion_results) == 9
     assert [
         result.criterion_id for result in update["assessment"].criterion_results
     ] == [

@@ -21,8 +21,6 @@ VERIFICATION_IDS = (
 )
 
 AUDIT_IDS = (
-    "purchase_classification",
-    "threshold_and_funding",
     "appropriate_response_scope",
     "vendor_selection",
     "price_reasonableness",
@@ -251,18 +249,18 @@ def test_partially_supported_result_can_preserve_evidence_gaps() -> None:
     assert result.missing_evidence == ["Incident timeline"]
 
 
-def test_unknown_funding_cannot_be_not_supported_from_missing_evidence() -> None:
+def test_missing_evidence_alone_cannot_support_negative_finding() -> None:
     with pytest.raises(
         ValidationError,
         match="requires affirmative adverse evidence",
     ):
         CriterionResult(
-            criterion_id="threshold_and_funding",
+            criterion_id="approval_authority",
             status=CriterionStatus.NOT_SUPPORTED,
-            rationale="The funding source and applicable threshold are unknown.",
+            rationale="The applicable approval authority is unknown.",
             missing_evidence=[
-                "Funding source",
-                "Applicable purchasing threshold",
+                "Applicable approval authority",
+                "Approval record",
             ],
             confidence=0.2,
         )
@@ -294,7 +292,7 @@ def test_affirmative_adverse_evidence_can_support_negative_finding() -> None:
     assert result.missing_evidence == ["Written procurement file determination"]
 
 
-def test_audit_readiness_assessment_accepts_eight_results() -> None:
+def test_audit_readiness_assessment_accepts_six_results() -> None:
     assessment = AuditReadinessAssessment(
         case_id="EM-001",
         recommendation=(
@@ -317,7 +315,7 @@ def test_audit_readiness_assessment_accepts_eight_results() -> None:
     )
 
     assert assessment.case_id == "EM-001"
-    assert len(assessment.criterion_results) == 8
+    assert len(assessment.criterion_results) == 6
 
 
 def test_audit_readiness_rejects_duplicate_criterion_ids() -> None:
@@ -349,7 +347,7 @@ def test_audit_readiness_rejects_duplicate_criterion_ids() -> None:
                         rationale="Supported.",
                         confidence=0.9,
                     )
-                    for criterion_id in AUDIT_IDS[:6]
+                    for criterion_id in AUDIT_IDS[:4]
                 ],
             ],
             overall_confidence=0.9,
@@ -392,7 +390,7 @@ def test_complete_assessment_nests_both_stage_results() -> None:
 
     assert assessment.emergency_verification is verification
     assert assessment.audit_readiness is audit
-    assert len(assessment.criterion_results) == 11
+    assert len(assessment.criterion_results) == 9
 
 
 def test_complete_assessment_rejects_audit_stage_without_verified_emergency() -> None:
