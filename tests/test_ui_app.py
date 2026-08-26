@@ -125,6 +125,7 @@ def test_chat_handler_streams_stage_progress_and_final_response(
             "emergency_verification_subagent",
             {"emergency_verification": Verification()},
         )
+        yield "procurement_context_subagent", {}
         yield "audit_readiness_subagent", {}
         yield (
             "finalize_assessment",
@@ -142,7 +143,8 @@ def test_chat_handler_streams_stage_progress_and_final_response(
 
     assert updates[0].startswith("Review started")
     assert updates[1].startswith("Emergency verified")
-    assert updates[2].startswith("Audit-readiness review complete")
+    assert updates[2].startswith("Procurement context established")
+    assert updates[3].startswith("Audit-readiness review complete")
     assert updates[-1] == "## Final assessment"
 
 

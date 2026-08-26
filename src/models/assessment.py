@@ -204,6 +204,72 @@ class EmergencyVerification(StrictModel):
         return self
 
 
+class ProcurementContext(StrictModel):
+    """Procurement baseline established before audit-readiness assessment."""
+
+    case_id: str = Field(pattern=r"^EM-[0-9]{3}$")
+    purchase_classification: str | None = None
+    estimated_purchase_value_usd: float | None = Field(default=None, ge=0)
+    funding_source: str | None = None
+    applicable_threshold: str | None = None
+    normal_procurement_method: str | None = None
+    normal_approval_authority: list[str] | None = None
+    special_procurement_requirements: list[str] | None = None
+    requirements_modified_by_emergency: list[str] | None = None
+    requirements_still_applicable: list[str] | None = None
+    unresolved_questions: list[str] = Field(default_factory=list)
+    requires_human_input: bool = False
+    sources_used: list[EvidenceReference] = Field(default_factory=list)
+
+    @field_validator(
+        "normal_approval_authority",
+        "special_procurement_requirements",
+        "requirements_modified_by_emergency",
+        "requirements_still_applicable",
+        "unresolved_questions",
+    )
+    @classmethod
+    def context_list_values_must_be_unique(
+        cls,
+        values: list[str] | None,
+    ) -> list[str] | None:
+        """Reject repeated contextual findings or follow-up questions."""
+
+        if values is None:
+            return values
+        normalized = [value.casefold() for value in values]
+        if len(normalized) != len(set(normalized)):
+            raise ValueError("List values must be unique.")
+        return values
+
+    @model_validator(mode="after")
+    def unknown_context_requires_questions(self) -> ProcurementContext:
+        """Keep unknown fields explicit and tied to human follow-up."""
+
+        contextual_values = (
+            self.purchase_classification,
+            self.estimated_purchase_value_usd,
+            self.funding_source,
+            self.applicable_threshold,
+            self.normal_procurement_method,
+            self.normal_approval_authority,
+            self.special_procurement_requirements,
+            self.requirements_modified_by_emergency,
+            self.requirements_still_applicable,
+        )
+        has_unknowns = any(value is None for value in contextual_values)
+        if has_unknowns and not self.unresolved_questions:
+            raise ValueError(
+                "Unknown procurement context requires unresolved_questions."
+            )
+        if self.requires_human_input != bool(self.unresolved_questions):
+            raise ValueError(
+                "requires_human_input must match whether unresolved_questions "
+                "are present."
+            )
+        return self
+
+
 class AuditRisk(StrictModel):
     """A risk that may weaken the procurement file."""
 
@@ -296,13 +362,15 @@ class AuditReadinessAssessment(StrictModel):
 
 
 class EmergencyProcurementAssessment(StrictModel):
-    """Complete workflow result containing its two structured stages (emergency_verification + audit_readiness)."""
+    """Complete result containing verification, context, and audit stages."""
 
     schema_version: str = "1.0"
 
     case_id: str = Field(pattern=r"^EM-[0-9]{3}$")
 
     emergency_verification: EmergencyVerification
+
+    procurement_context: ProcurementContext | None = None
 
     audit_readiness: AuditReadinessAssessment | None = None
 
@@ -316,6 +384,15 @@ class EmergencyProcurementAssessment(StrictModel):
             raise ValueError(
                 "emergency_verification case_id must match assessment case_id."
             )
+        if self.procurement_context is not None:
+            if self.procurement_context.case_id != self.case_id:
+                raise ValueError(
+                    "procurement_context case_id must match assessment case_id."
+                )
+            if self.emergency_verification.emergency_is_verified is not True:
+                raise ValueError(
+                    "procurement_context requires a verified emergency."
+                )
         if self.audit_readiness is not None:
             if self.audit_readiness.case_id != self.case_id:
                 raise ValueError(

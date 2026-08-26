@@ -10,6 +10,7 @@ from models.assessment import (
     EmergencyVerification,
     EvidenceReference,
     FinalRecommendation,
+    ProcurementContext,
 )
 from models.criteria import CriterionStatus
 
@@ -54,6 +55,23 @@ def verification_result(
         ),
         confidence=0.9 if status == CriterionStatus.SUPPORTED else 0.4,
         **kwargs,
+    )
+
+
+def procurement_context() -> ProcurementContext:
+    return ProcurementContext(
+        case_id="EM-001",
+        purchase_classification="Public works repair",
+        estimated_purchase_value_usd=184_000,
+        funding_source="City general fund",
+        applicable_threshold="Formal procurement threshold",
+        normal_procurement_method="Formal competitive solicitation",
+        normal_approval_authority=["City Council"],
+        special_procurement_requirements=[],
+        requirements_modified_by_emergency=["Competitive solicitation"],
+        requirements_still_applicable=["Price reasonableness"],
+        unresolved_questions=[],
+        requires_human_input=False,
     )
 
 
@@ -354,7 +372,7 @@ def test_audit_readiness_rejects_duplicate_criterion_ids() -> None:
         )
 
 
-def test_complete_assessment_nests_both_stage_results() -> None:
+def test_complete_assessment_nests_all_structured_stage_results() -> None:
     verification = EmergencyVerification(
         case_id="EM-001",
         emergency_is_verified=True,
@@ -385,10 +403,12 @@ def test_complete_assessment_nests_both_stage_results() -> None:
     assessment = EmergencyProcurementAssessment(
         case_id="EM-001",
         emergency_verification=verification,
+        procurement_context=procurement_context(),
         audit_readiness=audit,
     )
 
     assert assessment.emergency_verification is verification
+    assert assessment.procurement_context is not None
     assert assessment.audit_readiness is audit
     assert len(assessment.criterion_results) == 9
 

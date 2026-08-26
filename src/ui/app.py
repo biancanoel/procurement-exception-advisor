@@ -149,14 +149,19 @@ def stream_response_to_message(
                 and verification.emergency_is_verified is True
             ):
                 yield (
-                    "Emergency verified — reviewing whether the procurement "
-                    "file is audit-ready…"
+                    "Emergency verified — determining the applicable "
+                    "procurement context…"
                 )
             else:
                 yield (
                     "Emergency verification complete — preparing the "
                     "assessment…"
                 )
+        elif node_name == "procurement_context_subagent":
+            yield (
+                "Procurement context established — reviewing whether the "
+                "procurement file is audit-ready…"
+            )
         elif node_name == "audit_readiness_subagent":
             yield "Audit-readiness review complete — preparing the assessment…"
         elif node_name == "finalize_assessment":

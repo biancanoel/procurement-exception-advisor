@@ -229,6 +229,7 @@ def invoke_structured_output(
     schema: type[Any],
     messages: list[tuple[str, str]],
     output_name: str,
+    validation_retry_instruction: str | None = None,
 ) -> Any:
     """Generate validated structured output with bounded correction retries."""
 
@@ -252,10 +253,17 @@ def invoke_structured_output(
                     "human",
                     "Your previous structured response failed Pydantic "
                     "validation. Regenerate the complete response and correct "
-                    "every issue below. If a gap prevents a final finding, use "
-                    "PARTIALLY_SUPPORTED, NOT_EVALUATED, or "
-                    "HUMAN_REVIEW_REQUIRED. Use NOT_SUPPORTED only with "
-                    "affirmative adverse evidence.\n\n"
+                    "every issue below. "
+                    + (
+                        validation_retry_instruction
+                        or (
+                            "If a gap prevents a final finding, use "
+                            "PARTIALLY_SUPPORTED, NOT_EVALUATED, or "
+                            "HUMAN_REVIEW_REQUIRED. Use NOT_SUPPORTED only "
+                            "with affirmative adverse evidence."
+                        )
+                    )
+                    + "\n\n"
                     f"{_assessment_validation_feedback(error)}",
                 ),
             ]
@@ -291,6 +299,7 @@ def create_model_node(
     model_with_tools: Any,
     *,
     model_for_supplied_case: Any | None = None,
+    system_instruction: str | None = None,
 ) -> Callable[[Mapping[str, Any]], dict[str, list[BaseMessage] | bool]]:
     """Create the model node shared by assessment graphs."""
 
@@ -315,6 +324,11 @@ def create_model_node(
                         f"{case.model_dump_json(indent=2)}"
                     )
                 ),
+                *messages,
+            ]
+        if system_instruction is not None:
+            messages = [
+                SystemMessage(content=system_instruction),
                 *messages,
             ]
         selected_model = (

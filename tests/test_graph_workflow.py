@@ -1,4 +1,4 @@
-"""Offline tests for the two-stage LangGraph assessment workflow."""
+"""Offline tests for the staged LangGraph assessment workflow."""
 
 from typing import Any, get_type_hints
 
@@ -14,6 +14,7 @@ from decision.emergency_criteria import (
 )
 import graph.audit_readiness_subagent as audit_subagent_module
 import graph.emergency_verification_subagent as emergency_subagent_module
+import graph.procurement_context_subagent as context_subagent_module
 from graph.assessment_helpers import (
     append_html_list,
     create_model_node,
@@ -40,6 +41,12 @@ from graph.shared import (
     check_evidence_gaps,
     prepare_gap_research,
 )
+from graph.procurement_context_subagent import (
+    PROCUREMENT_CONTEXT_STAGE,
+    build_procurement_context_subgraph,
+    determine_procurement_context,
+    procurement_context_tools,
+)
 from graph.workflow import (
     build_graph,
     finalize_assessment,
@@ -55,6 +62,7 @@ from models.assessment import (
     EmergencyVerification,
     EvidenceReference,
     FinalRecommendation,
+    ProcurementContext,
 )
 from models.cases import EmergencyCaseInput
 from models.criteria import CriterionStatus
@@ -70,6 +78,23 @@ def example_lookup(query: str) -> dict[str, str]:
     """Look up an example value."""
 
     return {"result": f"Found {query}"}
+
+
+@tool("search_procurement_rules")
+def example_rule_search(query: str, top_k: int = 3) -> dict[str, Any]:
+    """Search the offline procurement-rule fixture."""
+
+    return {
+        "query": query,
+        "top_k": top_k,
+        "results": [
+            {
+                "document_id": "SM-BIDDING-THRESHOLDS",
+                "section": "Professional services",
+                "text": "Formal proposals require Council authorization.",
+            }
+        ],
+    }
 
 
 class FakeBoundModel:
@@ -300,6 +325,63 @@ def audit_assessment(
     )
 
 
+def procurement_context_result(
+    *,
+    case_id: str = "EM-001",
+) -> ProcurementContext:
+    return ProcurementContext(
+        case_id=case_id,
+        purchase_classification="Public works repair",
+        estimated_purchase_value_usd=184_000,
+        funding_source="City general fund",
+        applicable_threshold="Formal competitive procurement threshold",
+        normal_procurement_method="Formal competitive solicitation",
+        normal_approval_authority=["City Council"],
+        special_procurement_requirements=["Public works requirements"],
+        requirements_modified_by_emergency=[
+            "Normal competitive solicitation timing"
+        ],
+        requirements_still_applicable=[
+            "Price reasonableness",
+            "Required approvals",
+        ],
+        unresolved_questions=[],
+        requires_human_input=False,
+        sources_used=[
+            EvidenceReference(
+                source_id="SM-BIDDING-THRESHOLDS",
+                source_type="procurement_policy",
+                description="City procurement threshold guidance",
+            )
+        ],
+    )
+
+
+def install_fake_procurement_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> ProcurementContext:
+    context = procurement_context_result()
+
+    def fake_context(state: dict[str, Any], **_: Any) -> dict[str, Any]:
+        return {
+            "case_input": state.get("case_input"),
+            "procurement_context": context,
+            "assessment": EmergencyProcurementAssessment(
+                case_id=context.case_id,
+                emergency_verification=state["emergency_verification"],
+                procurement_context=context,
+                audit_readiness=None,
+            ),
+        }
+
+    monkeypatch.setattr(
+        context_subagent_module,
+        "determine_procurement_context",
+        fake_context,
+    )
+    return context
+
+
 def state_with_case(case_id: str = "EM-001") -> dict[str, Any]:
     case = load_case(case_id)
     return {
@@ -395,11 +477,17 @@ def test_parent_starts_with_emergency_verification_subagent() -> None:
     assert start_targets == ["emergency_verification_subagent"]
     assert EMERGENCY_VERIFICATION_STAGE not in graph.nodes
     assert AUDIT_READINESS_STAGE not in graph.nodes
+    assert "procurement_context_subagent" in graph.nodes
     assert "audit_readiness_subagent" in graph.nodes
     assert "model" not in graph.nodes
     assert "tools" not in graph.nodes
     assert "check_evidence_gaps" not in graph.nodes
     assert "finalize_assessment" in graph.nodes
+    assert any(
+        edge.source == "procurement_context_subagent"
+        and edge.target == "audit_readiness_subagent"
+        for edge in graph.edges
+    )
     assert any(
         edge.source == "audit_readiness_subagent"
         and edge.target == "finalize_assessment"
@@ -446,6 +534,136 @@ def test_emergency_verification_excludes_government_award_search() -> None:
         "search_procurement_rules",
         "get_case_facts",
     ]
+
+
+def test_procurement_context_exposes_only_procurement_rule_search() -> None:
+    selected = procurement_context_tools(
+        [example_lookup, example_rule_search, search_government_awards]
+    )
+
+    assert selected == [example_rule_search]
+
+
+def test_procurement_context_subgraph_runs_one_tool_assisted_analysis() -> None:
+    case = load_case("EM-001")
+    expected = procurement_context_result()
+    tool_request_message = AIMessage(
+        content="",
+        tool_calls=[
+            {
+                "name": "search_procurement_rules",
+                "args": {
+                    "query": "Santa Monica public works thresholds",
+                    "top_k": 3,
+                },
+                "id": "context-rules-001",
+                "type": "tool_call",
+            }
+        ],
+    )
+    model = FakeChatModel([tool_request_message], [expected])
+
+    result = build_procurement_context_subgraph(
+        chat_model=model,
+        tools=[example_lookup, example_rule_search],
+    ).invoke(
+        {
+            "messages": [HumanMessage(content="Evaluate EM-001")],
+            "case_input": case,
+            "emergency_verification": verification(True),
+            "procurement_context": None,
+            "assessment": None,
+        }
+    )
+
+    assert result["procurement_context"] is expected
+    assert expected.purchase_classification == "Public works repair"
+    assert expected.normal_procurement_method == (
+        "Formal competitive solicitation"
+    )
+    assert expected.normal_approval_authority == ["City Council"]
+    assert expected.sources_used[0].source_id == "SM-BIDDING-THRESHOLDS"
+    assert model.structured_schemas == [ProcurementContext]
+    assert [tool.name for tool in model.bound_tool_sets[0]] == [
+        "search_procurement_rules"
+    ]
+    observation = next(
+        message
+        for message in result["messages"]
+        if isinstance(message, ToolMessage)
+        and message.name == "search_procurement_rules"
+    )
+    assert observation.tool_call_id == "context-rules-001"
+    structured_prompt = model.structured_inputs[0][1][1]
+    assert case.request_text in structured_prompt
+    assert "Formal proposals require Council authorization" in structured_prompt
+
+    graph = build_procurement_context_subgraph(
+        chat_model=FakeChatModel([]),
+        tools=[example_rule_search],
+    ).get_graph()
+    assert "check_evidence_gaps" not in graph.nodes
+    assert "prepare_gap_research" not in graph.nodes
+    assert any(
+        edge.source == "tools" and edge.target == PROCUREMENT_CONTEXT_STAGE
+        for edge in graph.edges
+    )
+
+
+def test_procurement_context_preserves_unknowns_for_human_input() -> None:
+    context = ProcurementContext(
+        case_id="EM-000",
+        purchase_classification=None,
+        estimated_purchase_value_usd=None,
+        funding_source=None,
+        applicable_threshold=None,
+        normal_procurement_method=None,
+        normal_approval_authority=None,
+        special_procurement_requirements=None,
+        requirements_modified_by_emergency=None,
+        requirements_still_applicable=None,
+        unresolved_questions=[
+            "What is being purchased?",
+            "What is the estimated total value and funding source?",
+        ],
+        requires_human_input=True,
+    )
+
+    assert context.purchase_classification is None
+    assert context.applicable_threshold is None
+    assert context.requires_human_input is True
+    with pytest.raises(
+        ValidationError,
+        match="Unknown procurement context requires unresolved_questions",
+    ):
+        ProcurementContext(case_id="EM-000")
+
+
+def test_procurement_context_retry_does_not_use_criterion_statuses() -> None:
+    case = load_case("EM-001")
+    try:
+        ProcurementContext(case_id=case.case_id)
+    except ValidationError as error:
+        validation_error = error
+    else:
+        pytest.fail("expected incomplete procurement context to fail")
+    expected = procurement_context_result()
+    model = FakeChatModel([], [validation_error, expected])
+
+    update = determine_procurement_context(
+        {
+            "messages": [HumanMessage(content="Evaluate EM-001")],
+            "case_input": case,
+            "emergency_verification": verification(True),
+            "assessment": None,
+        },
+        chat_model=model,
+    )
+
+    assert update["procurement_context"] is expected
+    retry_instruction = model.structured_inputs[1][-1][1]
+    assert "Do not introduce criterion statuses" in retry_instruction
+    assert "PARTIALLY_SUPPORTED" not in retry_instruction
 
 
 def test_audit_readiness_is_a_compiled_subgraph() -> None:
@@ -527,7 +745,9 @@ def test_audit_readiness_evaluates_only_remaining_six_and_combines_results() -> 
     model = FakeChatModel([], [expected])
     state = state_with_case()
     verified = verification(True)
+    context = procurement_context_result()
     state["emergency_verification"] = verified
+    state["procurement_context"] = context
 
     update = audit_readiness(state, chat_model=model)
 
@@ -535,6 +755,7 @@ def test_audit_readiness_evaluates_only_remaining_six_and_combines_results() -> 
     assert len(expected.criterion_results) == 6
     assert isinstance(update["assessment"], EmergencyProcurementAssessment)
     assert update["assessment"].emergency_verification is verified
+    assert update["assessment"].procurement_context is context
     assert update["assessment"].audit_readiness is expected
     assert len(update["assessment"].criterion_results) == 9
     assert [
@@ -547,6 +768,8 @@ def test_audit_readiness_evaluates_only_remaining_six_and_combines_results() -> 
     prompt = model.structured_inputs[0][1][1]
     assert "approval_authority" in prompt
     assert "emergency_is_verified" in prompt
+    assert "PROCUREMENT CONTEXT" in prompt
+    assert "Formal competitive solicitation" in prompt
 
 
 def test_audit_readiness_uses_specific_node_update_type() -> None:
@@ -555,6 +778,7 @@ def test_audit_readiness_uses_specific_node_update_type() -> None:
     assert return_type is AuditReadinessNodeUpdate
     assert get_type_hints(AuditReadinessNodeUpdate) == {
         "case_input": EmergencyCaseInput | None,
+        "procurement_context": ProcurementContext | None,
         "audit_readiness": AuditReadinessAssessment | None,
         "assessment": EmergencyProcurementAssessment | None,
         "assessment_stage": str,
@@ -748,7 +972,7 @@ def test_parent_routes_completed_emergency_verification() -> None:
 
     assert route_after_emergency_verification(
         {**base, "emergency_verification": verification(True), "unresolved_criteria": []}
-    ) == AUDIT_READINESS_STAGE
+    ) == PROCUREMENT_CONTEXT_STAGE
     assert route_after_emergency_verification(
         {**base, "emergency_verification": verification(False), "unresolved_criteria": []}
     ) == "finalize"
@@ -937,6 +1161,7 @@ def test_finalizer_uses_explicit_stage_when_both_results_exist() -> None:
 def test_verified_emergency_runs_audit_readiness(monkeypatch) -> None:
     verification_calls = 0
     audit_calls = 0
+    expected_context = install_fake_procurement_context(monkeypatch)
 
     def fake_verification(state: dict[str, Any], **_: Any) -> dict[str, Any]:
         nonlocal verification_calls
@@ -956,6 +1181,7 @@ def test_verified_emergency_runs_audit_readiness(monkeypatch) -> None:
             "assessment": EmergencyProcurementAssessment(
                 case_id="EM-001",
                 emergency_verification=state["emergency_verification"],
+                procurement_context=state["procurement_context"],
                 audit_readiness=resolved_audit,
             ),
             "assessment_stage": AUDIT_READINESS_STAGE,
@@ -975,11 +1201,13 @@ def test_verified_emergency_runs_audit_readiness(monkeypatch) -> None:
 
     assert verification_calls == 1
     assert audit_calls == 1
+    assert result["procurement_context"] is expected_context
     assert result["audit_readiness"] is resolved_audit
 
 
 def test_rejected_emergency_finalizes_without_audit(monkeypatch) -> None:
     audit_calls = 0
+    context_calls = 0
 
     def fake_verification(state: dict[str, Any], **_: Any) -> dict[str, Any]:
         return {
@@ -992,12 +1220,22 @@ def test_rejected_emergency_finalizes_without_audit(monkeypatch) -> None:
         audit_calls += 1
         return {}
 
+    def fake_context(state: dict[str, Any], **_: Any) -> dict[str, Any]:
+        nonlocal context_calls
+        context_calls += 1
+        return {}
+
     monkeypatch.setattr(
         emergency_subagent_module,
         "emergency_verification",
         fake_verification,
     )
     monkeypatch.setattr(audit_subagent_module, "audit_readiness", fake_audit)
+    monkeypatch.setattr(
+        context_subagent_module,
+        "determine_procurement_context",
+        fake_context,
+    )
     model = FakeChatModel([AIMessage(content="Initial research complete.")])
 
     result = build_graph(chat_model=model, tools=[example_lookup]).invoke(
@@ -1005,6 +1243,7 @@ def test_rejected_emergency_finalizes_without_audit(monkeypatch) -> None:
     )
 
     assert audit_calls == 0
+    assert context_calls == 0
     assert result["emergency_verification"].emergency_is_verified is False
     final_content = str(result["messages"][-1].content)
     assert "emergency procurement exception is not justified" in final_content
@@ -1051,6 +1290,7 @@ def test_em003_poor_planning_runs_inside_subgraph_and_skips_audit() -> None:
 def test_verification_gap_research_returns_to_verification(monkeypatch) -> None:
     verifications = iter([verification(None), verification(True)])
     verification_calls = 0
+    install_fake_procurement_context(monkeypatch)
 
     def fake_verification(state: dict[str, Any], **_: Any) -> dict[str, Any]:
         nonlocal verification_calls
@@ -1068,6 +1308,7 @@ def test_verification_gap_research_returns_to_verification(monkeypatch) -> None:
             "assessment": EmergencyProcurementAssessment(
                 case_id="EM-001",
                 emergency_verification=state["emergency_verification"],
+                procurement_context=state["procurement_context"],
                 audit_readiness=resolved_audit,
             ),
             "assessment_stage": AUDIT_READINESS_STAGE,
@@ -1123,6 +1364,7 @@ def test_audit_gap_research_returns_to_audit(monkeypatch) -> None:
     resolved_audit = audit_assessment()
     audits = iter([initial_audit, resolved_audit])
     audit_calls = 0
+    install_fake_procurement_context(monkeypatch)
 
     def fake_verification(state: dict[str, Any], **_: Any) -> dict[str, Any]:
         return {
@@ -1139,6 +1381,7 @@ def test_audit_gap_research_returns_to_audit(monkeypatch) -> None:
             "assessment": EmergencyProcurementAssessment(
                 case_id="EM-001",
                 emergency_verification=state["emergency_verification"],
+                procurement_context=state["procurement_context"],
                 audit_readiness=current,
             ),
             "assessment_stage": AUDIT_READINESS_STAGE,

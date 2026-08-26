@@ -25,6 +25,11 @@ from graph.emergency_verification_subagent import (
     create_emergency_verification_subagent_node,
     emergency_verification_tools,
 )
+from graph.procurement_context_subagent import (
+    PROCUREMENT_CONTEXT_STAGE,
+    build_procurement_context_subgraph,
+    create_procurement_context_subagent_node,
+)
 from graph.shared import (
     AUDIT_READINESS_STAGE,
     EMERGENCY_VERIFICATION_STAGE,
@@ -36,6 +41,7 @@ from models.assessment import (
     EmergencyProcurementAssessment,
     EmergencyVerification,
     FinalRecommendation,
+    ProcurementContext,
 )
 from models.cases import EmergencyCaseInput
 from models.criteria import CriterionStatus
@@ -43,10 +49,11 @@ from rag.tool_call_demo import AVAILABLE_TOOLS
 
 
 class ProcurementGraphState(MessagesState):
-    """Shared messages and state for the two-stage assessment workflow."""
+    """Shared messages and state for the staged procurement workflow."""
 
     case_input: EmergencyCaseInput | None
     emergency_verification: EmergencyVerification | None
+    procurement_context: ProcurementContext | None
     audit_readiness: AuditReadinessAssessment | None
     assessment: EmergencyProcurementAssessment | None
     assessment_stage: str
@@ -64,7 +71,7 @@ def route_after_emergency_verification(
 
     verification = state.get("emergency_verification")
     if verification is not None and verification.emergency_is_verified is True:
-        return AUDIT_READINESS_STAGE
+        return PROCUREMENT_CONTEXT_STAGE
     return "finalize"
 
 
@@ -268,7 +275,7 @@ def build_graph(
     chat_model: Any | None = None,
     tools: Sequence[BaseTool] = AVAILABLE_TOOLS,
 ) -> Any:
-    """Build the parent graph around the emergency-verification sub-agent."""
+    """Build the parent graph around the three staged child graphs."""
 
     model = chat_model or create_chat_model()
     # Removing get_case_facts from the emergency verification subagent tools since we alreaddt have case facts from gradio. Keeping get_case_facts so we can still use test cases
@@ -291,6 +298,13 @@ def build_graph(
     run_emergency_verification_subagent = (
         create_emergency_verification_subagent_node(verification_subgraph)
     )
+    context_subgraph = build_procurement_context_subgraph(
+        chat_model=model,
+        tools=tools,
+    )
+    run_procurement_context_subagent = (
+        create_procurement_context_subagent_node(context_subgraph)
+    )
     # Removing get_case_facts from the audit readiness subagent tools since we alreaddt have case facts from gradio. Keeping get_case_facts so we can still use test cases
     audit_model_with_tools = model.bind_tools(list(tools))
     audit_model_for_supplied_case = model.bind_tools(
@@ -312,6 +326,10 @@ def build_graph(
         run_emergency_verification_subagent,
     )
     builder.add_node(
+        "procurement_context_subagent",
+        run_procurement_context_subagent,
+    )
+    builder.add_node(
         "audit_readiness_subagent",
         run_audit_readiness_subagent,
     )
@@ -321,9 +339,13 @@ def build_graph(
         "emergency_verification_subagent",
         route_after_emergency_verification,
         {
-            AUDIT_READINESS_STAGE: "audit_readiness_subagent",
+            PROCUREMENT_CONTEXT_STAGE: "procurement_context_subagent",
             "finalize": "finalize_assessment",
         },
+    )
+    builder.add_edge(
+        "procurement_context_subagent",
+        "audit_readiness_subagent",
     )
     builder.add_edge("audit_readiness_subagent", "finalize_assessment")
     builder.add_edge("finalize_assessment", END)
@@ -340,6 +362,7 @@ def _initial_graph_state(
         "messages": [HumanMessage(content=question)],
         "case_input": case_input,
         "emergency_verification": None,
+        "procurement_context": None,
         "audit_readiness": None,
         "assessment": None,
         "assessment_stage": EMERGENCY_VERIFICATION_STAGE,
