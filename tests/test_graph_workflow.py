@@ -24,7 +24,9 @@ from graph.audit_readiness_subagent import (
     AuditReadinessNodeUpdate,
     audit_readiness,
     build_audit_readiness_subgraph,
+    merge_targeted_audit_results,
     route_audit_readiness_gaps,
+    targeted_audit_readiness,
 )
 from graph.emergency_verification_subagent import (
     EmergencyVerificationNodeUpdate,
@@ -57,6 +59,7 @@ from graph.workflow import (
 from models.assessment import (
     AuditRisk,
     AuditReadinessAssessment,
+    AuditReadinessCriterionReassessment,
     CriterionResult,
     EmergencyProcurementAssessment,
     EmergencyVerification,
@@ -124,7 +127,10 @@ class FakeChatModel:
         self,
         responses: list[AIMessage],
         structured_responses: list[
-            EmergencyVerification | AuditReadinessAssessment | Exception
+            EmergencyVerification
+            | AuditReadinessAssessment
+            | AuditReadinessCriterionReassessment
+            | Exception
         ] | None = None,
     ) -> None:
         self.bound_tools: list[Any] = []
@@ -674,6 +680,7 @@ def test_audit_readiness_is_a_compiled_subgraph() -> None:
 
     assert {
         AUDIT_READINESS_STAGE,
+        "targeted_audit_readiness",
         "check_evidence_gaps",
         "prepare_gap_research",
         "model",
@@ -770,6 +777,86 @@ def test_audit_readiness_evaluates_only_remaining_six_and_combines_results() -> 
     assert "emergency_is_verified" in prompt
     assert "PROCUREMENT CONTEXT" in prompt
     assert "Formal competitive solicitation" in prompt
+
+
+def test_targeted_audit_reassessment_only_receives_unresolved_criteria() -> None:
+    existing = audit_assessment(unresolved_id="approval_authority")
+    resolved_approval = criterion_result(
+        "approval_authority",
+        status=CriterionStatus.SUPPORTED,
+    )
+    model = FakeChatModel(
+        [],
+        [
+            AuditReadinessCriterionReassessment(
+                case_id="EM-001",
+                criterion_results=[resolved_approval],
+            )
+        ],
+    )
+    state = state_with_case()
+    state.update(
+        {
+            "case_input": load_case("EM-001"),
+            "emergency_verification": verification(True),
+            "procurement_context": procurement_context_result(),
+            "audit_readiness": existing,
+            "unresolved_criteria": [
+                next(
+                    result
+                    for result in existing.criterion_results
+                    if result.criterion_id == "approval_authority"
+                )
+            ],
+            "assessment_stage": AUDIT_READINESS_STAGE,
+        }
+    )
+
+    update = targeted_audit_readiness(state, chat_model=model)
+
+    prompt = model.structured_inputs[0][1][1]
+    assert model.structured_schemas == [AuditReadinessCriterionReassessment]
+    assert "approval_authority" in prompt
+    assert "appropriate_response_scope" not in prompt
+    assert "vendor_selection" not in prompt
+    assert update["audit_readiness"].criterion_results[3] is resolved_approval
+
+
+def test_targeted_audit_merge_preserves_resolved_results_and_recomputes() -> None:
+    existing = audit_assessment(unresolved_id="approval_authority")
+    preserved_results = {
+        result.criterion_id: result
+        for result in existing.criterion_results
+        if result.criterion_id != "approval_authority"
+    }
+    updated = criterion_result(
+        "approval_authority",
+        status=CriterionStatus.NOT_SUPPORTED,
+    )
+
+    merged = merge_targeted_audit_results(
+        existing,
+        [updated],
+        source_ids_used=["new-rule-source"],
+    )
+
+    merged_by_id = {
+        result.criterion_id: result
+        for result in merged.criterion_results
+    }
+    assert merged_by_id["approval_authority"] is updated
+    assert all(
+        merged_by_id[criterion_id] is result
+        for criterion_id, result in preserved_results.items()
+    )
+    assert (
+        merged.recommendation
+        == FinalRecommendation.NOT_SUFFICIENTLY_SUPPORTED
+    )
+    assert merged.overall_confidence == pytest.approx(
+        sum(result.confidence for result in merged.criterion_results) / 6
+    )
+    assert merged.source_ids_used == ["new-rule-source"]
 
 
 def test_audit_readiness_uses_specific_node_update_type() -> None:
@@ -1361,8 +1448,6 @@ def test_verification_gap_research_returns_to_verification(monkeypatch) -> None:
 
 def test_audit_gap_research_returns_to_audit(monkeypatch) -> None:
     initial_audit = audit_assessment(unresolved_id="approval_authority")
-    resolved_audit = audit_assessment()
-    audits = iter([initial_audit, resolved_audit])
     audit_calls = 0
     install_fake_procurement_context(monkeypatch)
 
@@ -1375,14 +1460,13 @@ def test_audit_gap_research_returns_to_audit(monkeypatch) -> None:
     def fake_audit(state: dict[str, Any], **_: Any) -> dict[str, Any]:
         nonlocal audit_calls
         audit_calls += 1
-        current = next(audits)
         return {
-            "audit_readiness": current,
+            "audit_readiness": initial_audit,
             "assessment": EmergencyProcurementAssessment(
                 case_id="EM-001",
                 emergency_verification=state["emergency_verification"],
                 procurement_context=state["procurement_context"],
-                audit_readiness=current,
+                audit_readiness=initial_audit,
             ),
             "assessment_stage": AUDIT_READINESS_STAGE,
         }
@@ -1395,7 +1479,6 @@ def test_audit_gap_research_returns_to_audit(monkeypatch) -> None:
     monkeypatch.setattr(audit_subagent_module, "audit_readiness", fake_audit)
     model = FakeChatModel(
         [
-            AIMessage(content="Initial research complete."),
             AIMessage(
                 content="",
                 tool_calls=[
@@ -1414,15 +1497,36 @@ def test_audit_gap_research_returns_to_audit(monkeypatch) -> None:
                 ],
             ),
             AIMessage(content="Gap research complete."),
-        ]
+        ],
+        [
+            AuditReadinessCriterionReassessment(
+                case_id="EM-001",
+                criterion_results=[
+                    criterion_result(
+                        "approval_authority",
+                        status=CriterionStatus.SUPPORTED,
+                    )
+                ],
+            )
+        ],
     )
 
     result = build_graph(chat_model=model, tools=[example_lookup]).invoke(
-        {"messages": [HumanMessage(content="Evaluate the case")]}
+        {
+            "messages": [HumanMessage(content="Evaluate the case")],
+            "case_input": load_case("EM-001"),
+        }
     )
 
-    assert audit_calls == 2
-    assert result["audit_readiness"] is resolved_audit
+    assert audit_calls == 1
+    assert all(
+        result.status == CriterionStatus.SUPPORTED
+        for result in result["audit_readiness"].criterion_results
+    )
+    assert (
+        result["audit_readiness"].recommendation
+        == FinalRecommendation.SUFFICIENTLY_SUPPORTED
+    )
     assert [
         message.tool_call_id
         for message in result["messages"]
@@ -1487,6 +1591,7 @@ def test_audit_subgraph_research_stops_after_three_rounds(
 ) -> None:
     unresolved_audit = audit_assessment(unresolved_id="approval_authority")
     audit_calls = 0
+    targeted_calls = 0
 
     def fake_audit(state: dict[str, Any], **_: Any) -> dict[str, Any]:
         nonlocal audit_calls
@@ -1502,6 +1607,25 @@ def test_audit_subgraph_research_stops_after_three_rounds(
         }
 
     monkeypatch.setattr(audit_subagent_module, "audit_readiness", fake_audit)
+
+    def fake_targeted(state: dict[str, Any], **_: Any) -> dict[str, Any]:
+        nonlocal targeted_calls
+        targeted_calls += 1
+        return {
+            "audit_readiness": unresolved_audit,
+            "assessment": EmergencyProcurementAssessment(
+                case_id="EM-001",
+                emergency_verification=state["emergency_verification"],
+                audit_readiness=unresolved_audit,
+            ),
+            "assessment_stage": AUDIT_READINESS_STAGE,
+        }
+
+    monkeypatch.setattr(
+        audit_subagent_module,
+        "targeted_audit_readiness",
+        fake_targeted,
+    )
     responses: list[AIMessage] = []
     for round_number in range(1, MAX_RESEARCH_ROUNDS + 1):
         responses.extend(
@@ -1533,7 +1657,8 @@ def test_audit_subgraph_research_stops_after_three_rounds(
     ).invoke(initial_state)
 
     assert result["research_rounds"] == MAX_RESEARCH_ROUNDS == 3
-    assert audit_calls == 4
+    assert audit_calls == 1
+    assert targeted_calls == 3
     assert [
         item.criterion_id for item in result["unresolved_criteria"]
     ] == ["approval_authority"]

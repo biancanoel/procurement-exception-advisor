@@ -11,6 +11,7 @@ from typing import Any, Callable
 from langchain_core.messages import (
     AIMessage,
     BaseMessage,
+    HumanMessage,
     SystemMessage,
     ToolMessage,
 )
@@ -155,11 +156,33 @@ def case_from_state(
     return case_from_messages(state["messages"])
 
 
-def tool_evidence(messages: Sequence[BaseMessage]) -> str:
-    """Format completed non-case tool observations as assessment evidence."""
+def tool_evidence(
+    messages: Sequence[BaseMessage],
+    *,
+    after_latest_gap_request: bool = False,
+) -> str:
+    """Format completed non-case tool observations as assessment evidence.
+
+    Targeted reassessment can limit the evidence to observations produced by
+    the latest gap-research round. Initial assessment retains the historical
+    behavior of receiving all completed observations.
+    """
+
+    first_message_index = 0
+    if after_latest_gap_request:
+        for index in range(len(messages) - 1, -1, -1):
+            message = messages[index]
+            if (
+                isinstance(message, HumanMessage)
+                and str(message.content).startswith(
+                    "These are the complete unresolved "
+                )
+            ):
+                first_message_index = index + 1
+                break
 
     observations: list[str] = []
-    for message in messages:
+    for message in messages[first_message_index:]:
         if not isinstance(message, ToolMessage):
             continue
         if message.name == "get_case_facts":

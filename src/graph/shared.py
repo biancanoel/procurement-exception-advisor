@@ -74,11 +74,11 @@ def prepare_gap_research(
             f"These are the complete unresolved {stage} criterion results "
             f"(additional research round {next_round}):\n\n"
             f"{json.dumps(unresolved_context, indent=2)}\n\n"
-            "Decide whether any gaps can be addressed with your available "
+            f"Decide whether any gaps can be addressed with your available "
             "tools. If so, make one or multiple appropriate tool calls. Do "
             "not invent evidence and do not force a tool call. If the tools "
             "cannot resolve the remaining gaps, return a normal response that "
-            "preserves the missing evidence and follow-up needs."
+            "preserves the missing evidence and follow-up needs. Do not attempt to resolve gaps in the other assessment stages outside the current stage"
         )
     )
     return {

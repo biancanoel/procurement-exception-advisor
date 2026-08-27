@@ -343,10 +343,7 @@ def build_graph(
             "finalize": "finalize_assessment",
         },
     )
-    builder.add_edge(
-        "procurement_context_subagent",
-        "audit_readiness_subagent",
-    )
+    builder.add_edge( "procurement_context_subagent", "audit_readiness_subagent")
     builder.add_edge("audit_readiness_subagent", "finalize_assessment")
     builder.add_edge("finalize_assessment", END)
     return builder.compile()
