@@ -164,16 +164,10 @@ PROCUREMENT_CRITERIA: tuple[EmergencyCriterion, ...] = (
             "documented, reasonable reason rather than preference or convenience."
         ),
         questions_to_answer=[
-            "Why was this vendor selected?",
-            "Can the vendor meet the required response time?",
-            "Does the vendor have the necessary qualifications, licenses, staffing, and equipment?",
             "Were other qualified vendors considered?",
-            "Does the vendor have unique access, compatibility, or site knowledge that is relevant to the emergency?",
         ],
         expected_evidence=[
             "Vendor availability confirmation",
-            "Qualifications or licensing",
-            "Explanation of vendor selection",
             "Records of alternative vendor contacts",
         ],
         preferred_evidence_types=[

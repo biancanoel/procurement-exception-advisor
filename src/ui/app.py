@@ -10,7 +10,7 @@ import gradio as gr
 from dotenv import load_dotenv
 
 from graph.workflow import run_graph, stream_graph
-from models.cases import AvailableDocument, EmergencyCaseInput
+from models.cases import EmergencyCaseInput, EvidenceDocument
 
 
 def _text_from_user_history(history: list[dict[str, Any]]) -> list[str]:
@@ -46,6 +46,17 @@ def _file_path(upload: Any) -> str | None:
     return str(path) if path else None
 
 
+def _original_filename(upload: Any, path: str) -> str:
+    """Preserve Gradio's original upload name with a path-name fallback."""
+
+    candidate: Any = None
+    if isinstance(upload, dict):
+        candidate = upload.get("orig_name") or upload.get("name")
+    else:
+        candidate = getattr(upload, "orig_name", None)
+    return Path(str(candidate or path)).name
+
+
 def _files_from_user_history(history: list[dict[str, Any]]) -> list[Any]:
     """Collect earlier user attachments so follow-up turns retain them."""
 
@@ -62,25 +73,42 @@ def _files_from_user_history(history: list[dict[str, Any]]) -> list[Any]:
     return files
 
 
-def _available_documents(files: list[Any]) -> list[AvailableDocument]:
-    """Represent uploaded files without claiming their contents were parsed."""
+def _case_evidence(files: list[Any]) -> list[EvidenceDocument]:
+    """Read uploaded UTF-8 TXT files into structured, case-local evidence."""
 
-    documents: list[AvailableDocument] = []
+    documents: list[EvidenceDocument] = []
     seen_paths: set[str] = set()
     for upload in files:
         path = _file_path(upload)
-        if path is None or path in seen_paths:
+        if path is None:
+            raise ValueError("An uploaded evidence file has no readable path")
+        if path in seen_paths:
             continue
         seen_paths.add(path)
-        filename = Path(path).name
+        filename = _original_filename(upload, path)
+        if Path(filename).suffix.lower() != ".txt":
+            raise ValueError(
+                f"Unsupported evidence file '{filename}'. "
+                "Only .txt files are accepted."
+            )
+        try:
+            extracted_text = Path(path).read_text(encoding="utf-8")
+        except UnicodeDecodeError as error:
+            raise ValueError(
+                f"Evidence file '{filename}' is not valid UTF-8 text."
+            ) from error
+        except OSError as error:
+            raise ValueError(
+                f"Could not read evidence file '{filename}': {error}"
+            ) from error
+        if not extracted_text.strip():
+            raise ValueError(f"Evidence file '{filename}' is empty.")
         documents.append(
-            AvailableDocument(
-                document_id=f"UPLOAD-{len(documents) + 1:03d}",
-                title=filename,
-                summary=(
-                    "User-provided attachment. Its contents have not yet "
-                    "been extracted or reviewed."
-                ),
+            EvidenceDocument(
+                evidence_id=f"CASE-D{len(documents) + 1:02d}",
+                filename=filename,
+                file_type="txt",
+                extracted_text=extracted_text,
             )
         )
     return documents
@@ -90,7 +118,7 @@ def respond_to_message(
     message: dict[str, Any],
     history: list[dict[str, Any]],
 ) -> str:
-    """Evaluate accumulated user text and record uploaded attachments."""
+    """Evaluate accumulated user text and uploaded TXT case evidence."""
 
     current_text = str(message.get("text", "")).strip()
     prior_text = _text_from_user_history(history)
@@ -104,7 +132,7 @@ def respond_to_message(
     ]
     case_input = EmergencyCaseInput(
         description="\n\n".join(description_parts),
-        available_documents=_available_documents(files),
+        case_evidence=_case_evidence(files),
     )
     response = run_graph(
         "Evaluate the supplied emergency procurement situation.",
@@ -131,7 +159,7 @@ def stream_response_to_message(
     ]
     case_input = EmergencyCaseInput(
         description="\n\n".join(description_parts),
-        available_documents=_available_documents(files),
+        case_evidence=_case_evidence(files),
     )
 
     yield (
@@ -187,8 +215,9 @@ def build_app() -> gr.Blocks:
         gr.Markdown("# Procurement Exception Advisor")
         gr.Markdown(
             "Describe the emergency situation and optionally attach relevant "
-            "files. Unknown details can be left out and will be identified "
-            "during the assessment. Attachment contents are not parsed yet."
+            "TXT evidence files. Attached filenames appear in your message so "
+            "you can confirm what will be evaluated. Unknown details can be "
+            "left out and will be identified during the assessment."
         )
         gr.ChatInterface(
             fn=stream_response_to_message,
@@ -199,10 +228,10 @@ def build_app() -> gr.Blocks:
             ),
             textbox=gr.MultimodalTextbox(
                 file_count="multiple",
-                file_types=["file"],
+                file_types=[".txt"],
                 sources=["upload"],
                 placeholder=(
-                    "Describe the emergency and attach any available files."
+                    "Describe the emergency and attach any available TXT files."
                 ),
             ),
         )

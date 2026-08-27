@@ -86,7 +86,12 @@ def _render_criterion_result(result: CriterionResult) -> list[str]:
         f"Rationale: {result.rationale}",
         f"Confidence: {result.confidence:.0%}",
     ]
-    append_html_list(lines, "Follow-up questions", result.follow_up_questions)
+    append_html_list(
+        lines,
+        "Follow-up questions",
+        result.follow_up_questions,
+        include_heading=True,
+    )
     lines.append(
         "Requires human review: "
         f"{'yes' if result.requires_human_review else 'no'}"
@@ -209,9 +214,24 @@ def _render_audit_readiness(
             )
 
     lines.extend(["", "## Outstanding checklist"])
-    append_html_list(lines, "Missing documents", audit.missing_documents)
-    append_html_list(lines, "Required approvals", audit.required_approvals)
-    append_html_list(lines, "Next steps", audit.next_steps)
+    append_html_list(
+        lines,
+        "Missing documents",
+        audit.missing_documents,
+        include_heading=True,
+    )
+    append_html_list(
+        lines,
+        "Required approvals",
+        audit.required_approvals,
+        include_heading=True,
+    )
+    append_html_list(
+        lines,
+        "Next steps",
+        audit.next_steps,
+        include_heading=True,
+    )
     lines.append(
         "Requires human review: "
         f"{'yes' if audit.requires_human_review else 'no'}"

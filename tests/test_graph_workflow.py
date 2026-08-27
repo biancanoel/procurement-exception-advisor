@@ -59,7 +59,7 @@ from models.assessment import (
     FinalRecommendation,
     ProcurementContext,
 )
-from models.cases import EmergencyCaseInput
+from models.cases import EmergencyCaseInput, EvidenceDocument
 from models.criteria import CriterionStatus
 from rag.tools import (
     get_case_facts,
@@ -858,7 +858,16 @@ def test_parent_graph_evaluates_dynamic_case_input_without_case_tool() -> None:
         description=(
             "A critical treatment chemical may run out before the next "
             "scheduled delivery."
-        )
+        ),
+        case_evidence=[
+            EvidenceDocument(
+                evidence_id="CASE-D01",
+                filename="supplier_delay.txt",
+                extracted_text=(
+                    "The supplier reports that delivery will take fourteen days."
+                ),
+            )
+        ],
     )
     rejected = verification(False).model_copy(update={"case_id": case.case_id})
     model = FakeChatModel([], [rejected])
@@ -875,6 +884,13 @@ def test_parent_graph_evaluates_dynamic_case_input_without_case_tool() -> None:
 
     assert result["case_input"] == case
     assert result["emergency_verification"].case_id == case.case_id
+    assert "CASE-D01" in result["emergency_verification"].source_ids_used
+    structured_prompt = model.structured_inputs[0][1][1]
+    assert "supplier_delay.txt" in structured_prompt
+    assert "CASE-D01" in structured_prompt
+    assert structured_prompt.count(
+        "The supplier reports that delivery will take fourteen days."
+    ) == 1
     assert model.bound_model.inputs == []
     assert [
         [tool.name for tool in tool_set]
@@ -955,7 +971,6 @@ def test_html_list_formatter_closes_lists_and_escapes_values() -> None:
     assert lines == [
         "Before",
         "",
-        "<h4>Missing evidence</h4>",
         "<ul>",
         "<li>Vendor &lt;quote&gt;</li>",
         "<li>Approval &amp; date</li>",
@@ -1186,7 +1201,6 @@ def test_em003_poor_planning_runs_inside_subgraph_and_skips_audit() -> None:
     final_content = str(result["messages"][-1].content)
     assert "emergency procurement exception is not justified" in final_content
     assert "missed procurement planning" in final_content
-
 
 
 

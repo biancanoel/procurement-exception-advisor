@@ -5,7 +5,14 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import Literal
 
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
+from pydantic import (
+    AliasChoices,
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_validator,
+    model_validator,
+)
 
 
 class StrictModel(BaseModel):
@@ -27,6 +34,15 @@ class AvailableDocument(StrictModel):
     document_id: str = Field(min_length=1)
     title: str = Field(min_length=1)
     summary: str = Field(min_length=1)
+
+
+class EvidenceDocument(StrictModel):
+    """User-uploaded, case-specific text evidence to be kept outside policy RAG."""
+
+    evidence_id: str = Field(min_length=1, pattern=r"^CASE-D[0-9]{2,}$")
+    filename: str = Field(min_length=1)
+    file_type: Literal["txt"] = "txt"
+    extracted_text: str = Field(min_length=1)
 
 
 class EmergencyCaseInput(StrictModel):
@@ -51,6 +67,7 @@ class EmergencyCaseInput(StrictModel):
         description="Required description of the emergency situation.",
     )
     available_documents: list[AvailableDocument] = Field(default_factory=list)
+    case_evidence: list[EvidenceDocument] = Field(default_factory=list)
 
     @property
     def description(self) -> str:
@@ -73,6 +90,31 @@ class EmergencyCaseInput(StrictModel):
 
         return documents
 
+    @field_validator("case_evidence")
+    @classmethod
+    def evidence_ids_must_be_unique(
+        cls,
+        documents: list[EvidenceDocument],
+    ) -> list[EvidenceDocument]:
+        evidence_ids = [document.evidence_id for document in documents]
+
+        if len(evidence_ids) != len(set(evidence_ids)):
+            raise ValueError(
+                "case_evidence contains duplicate evidence_id values"
+            )
+
+        return documents
+
+    @model_validator(mode="after")
+    def all_case_source_ids_must_be_unique(self) -> EmergencyCaseInput:
+        source_ids = [
+            *(document.document_id for document in self.available_documents),
+            *(document.evidence_id for document in self.case_evidence),
+        ]
+        if len(source_ids) != len(set(source_ids)):
+            raise ValueError("case source IDs must be unique")
+        return self
+
     @property
     def available_document_ids(self) -> set[str]:
         """Return the document IDs available to the agent for this case."""
@@ -80,6 +122,15 @@ class EmergencyCaseInput(StrictModel):
         return {
             document.document_id
             for document in self.available_documents
+        }
+
+    @property
+    def evidence_source_ids(self) -> set[str]:
+        """Return every case-specific source ID available for attribution."""
+
+        return self.available_document_ids | {
+            document.evidence_id
+            for document in self.case_evidence
         }
 
 

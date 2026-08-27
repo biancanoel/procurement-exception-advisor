@@ -6,6 +6,7 @@ from pydantic import ValidationError
 from models.cases import (
     AvailableDocument,
     EmergencyCaseInput,
+    EvidenceDocument,
     Jurisdiction,
 )
 
@@ -82,9 +83,28 @@ def test_input_model_requires_only_an_emergency_description() -> None:
     assert case.estimated_amount_usd is None
     assert case.proposed_vendor is None
     assert case.available_documents == []
+    assert case.case_evidence == []
     assert EmergencyCaseInput.model_json_schema()["required"] == [
         "description"
     ]
+
+
+def test_input_model_preserves_uploaded_case_evidence() -> None:
+    case = EmergencyCaseInput(
+        description="A pump failed.",
+        case_evidence=[
+            EvidenceDocument(
+                evidence_id="CASE-D01",
+                filename="timeline.txt",
+                extracted_text="The outage began at noon.",
+            )
+        ],
+    )
+
+    assert case.case_evidence[0].filename == "timeline.txt"
+    assert case.case_evidence[0].file_type == "txt"
+    assert case.case_evidence[0].extracted_text == "The outage began at noon."
+    assert case.evidence_source_ids == {"CASE-D01"}
 
 
 def test_input_model_rejects_missing_description() -> None:
