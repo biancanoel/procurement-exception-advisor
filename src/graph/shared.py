@@ -80,6 +80,8 @@ def prepare_gap_research(
             "not invent evidence and do not force a tool call. If the tools "
             "cannot resolve the remaining gaps, return a normal response that "
             "preserves the missing evidence and follow-up needs. Do not attempt to resolve gaps in the other assessment stages outside the current stage"
+           "Rule questions: what law or policy requires, permits, defines, or considers. These are appropriate for search_procurement_rules."
+            "Case-specific evidence questions: whether the agency actually contacted vendors, searched existing contracts, checked cooperative contracts, obtained approval, received a quote, or created documentation. These cannot be resolved by search_procurement_rules and must remain agency/human evidence gaps."
         )
     )
     return {
