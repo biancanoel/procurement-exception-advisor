@@ -21,7 +21,14 @@ def search_procurement_rules(
     query: str,
     top_k: int = 4,
 ) -> list[RetrievalResult]:
-    """Search procurement rules using existing authority-aware retrieval and diversified chunks (MMR)."""
+    """Search the indexed procurement-law and policy corpus.
+
+    Use this tool for statutes, municipal code, procurement policies,
+    authority, thresholds, exceptions, and procedural requirements. It does
+    not search cooperative-contract catalogs or determine whether Sourcewell,
+    OMNIA Partners, another cooperative, an agency contract, a vendor, or a
+    product is currently available.
+    """
 
     return retrieve_diversified_chunks(
         query,

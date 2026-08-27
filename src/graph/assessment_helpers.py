@@ -11,7 +11,6 @@ from typing import Any, Callable
 from langchain_core.messages import (
     AIMessage,
     BaseMessage,
-    HumanMessage,
     SystemMessage,
     ToolMessage,
 )
@@ -26,6 +25,24 @@ from rag.answerer import DEFAULT_CHAT_MODEL, DEFAULT_TEMPERATURE
 
 
 MAX_ASSESSMENT_GENERATION_ATTEMPTS = 3
+
+ASSESSMENT_TOOL_BOUNDARIES_PROMPT = """Observe these tool boundaries throughout
+the assessment:
+
+- search_procurement_rules searches only the indexed legal and policy corpus.
+  Use it for statutes, municipal code, procurement policies, authority,
+  thresholds, exceptions, and procedural requirements.
+- search_procurement_rules cannot search Sourcewell, OMNIA Partners, other
+  cooperative-contract catalogs, agency contract inventories, vendors,
+  products, or current contract availability.
+- No currently available tool can determine whether a cooperative or agency
+  contract is available for this purchase. Do not attempt to research that
+  question with another tool or treat policy search results as contract-search
+  results. Preserve cooperative-contract availability as unknown case evidence
+  and retain the corresponding missing evidence or follow-up question.
+- search_government_awards provides federal award market intelligence only. It
+  does not establish cooperative, piggyback, or agency-contract availability.
+"""
 
 STATUS_SEMANTICS_PROMPT = """Apply these criterion status meanings exactly:
 
@@ -159,27 +176,20 @@ def case_from_state(
 def tool_evidence(
     messages: Sequence[BaseMessage],
     *,
-    after_latest_gap_request: bool = False,
+    start_index: int | None = None,
 ) -> str:
     """Format completed non-case tool observations as assessment evidence.
 
-    Targeted reassessment can limit the evidence to observations produced by
-    the latest gap-research round. Initial assessment retains the historical
+    ``start_index`` is an explicit graph-state boundary for targeted
+    reassessment. Initial assessment omits it and retains the historical
     behavior of receiving all completed observations.
     """
 
-    first_message_index = 0
-    if after_latest_gap_request:
-        for index in range(len(messages) - 1, -1, -1):
-            message = messages[index]
-            if (
-                isinstance(message, HumanMessage)
-                and str(message.content).startswith(
-                    "These are the complete unresolved "
-                )
-            ):
-                first_message_index = index + 1
-                break
+    first_message_index = 0 if start_index is None else start_index
+    if not 0 <= first_message_index <= len(messages):
+        raise ValueError(
+            "tool evidence start_index is outside the message list"
+        )
 
     observations: list[str] = []
     for message in messages[first_message_index:]:
@@ -197,7 +207,10 @@ def tool_evidence(
                 ]
             )
         )
-    return "\n\n---\n\n".join(observations) or "No additional tool evidence."
+    return (
+        "\n\n---\n\n".join(observations)
+        or "No additional tool evidence."
+    )
 
 
 def criteria_context(criteria: Sequence[EmergencyCriterion]) -> str:
@@ -349,11 +362,13 @@ def create_model_node(
                 ),
                 *messages,
             ]
+        instructions = [ASSESSMENT_TOOL_BOUNDARIES_PROMPT]
         if system_instruction is not None:
-            messages = [
-                SystemMessage(content=system_instruction),
-                *messages,
-            ]
+            instructions.append(system_instruction)
+        messages = [
+            SystemMessage(content="\n\n".join(instructions)),
+            *messages,
+        ]
         selected_model = (
             model_for_supplied_case
             if supplied_case_is_not_a_tool_result

@@ -95,6 +95,7 @@ class AuditReadinessSubgraphState(MessagesState):
     max_research_rounds: int
     gap_research_active: bool
     gap_research_tools_used: bool
+    gap_research_start_index: int | None
 
 
 class AuditReadinessNodeUpdate(TypedDict):
@@ -387,7 +388,9 @@ def targeted_audit_readiness(
                         "NEW TOOL EVIDENCE:\n"
                         + tool_evidence(
                             state["messages"],
-                            after_latest_gap_request=True,
+                            start_index=state.get(
+                                "gap_research_start_index"
+                            ),
                         ),
                     ]
                 ),
@@ -526,6 +529,7 @@ def create_audit_readiness_subagent_node(
                 ),
                 "gap_research_active": False,
                 "gap_research_tools_used": False,
+                "gap_research_start_index": None,
             }
         )
         child_messages = list(result["messages"])

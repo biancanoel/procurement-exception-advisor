@@ -75,6 +75,7 @@ class EmergencyVerificationSubgraphState(MessagesState):
     max_research_rounds: int
     gap_research_active: bool
     gap_research_tools_used: bool
+    gap_research_start_index: int | None
 
 
 class EmergencyVerificationNodeUpdate(TypedDict):
@@ -101,6 +102,7 @@ class EmergencyVerificationSubagentUpdate(TypedDict):
     max_research_rounds: int
     gap_research_active: bool
     gap_research_tools_used: bool
+    gap_research_start_index: int | None
 
 
 def emergency_verification(
@@ -294,6 +296,7 @@ def create_emergency_verification_subagent_node(
                 ),
                 "gap_research_active": False,
                 "gap_research_tools_used": False,
+                "gap_research_start_index": None,
             }
         )
         child_messages = list(result["messages"])
@@ -312,6 +315,7 @@ def create_emergency_verification_subagent_node(
             ),
             "gap_research_active": False,
             "gap_research_tools_used": False,
+            "gap_research_start_index": None,
         }
 
     return run_emergency_verification_subagent

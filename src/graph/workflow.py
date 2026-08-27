@@ -62,6 +62,7 @@ class ProcurementGraphState(MessagesState):
     max_research_rounds: int
     gap_research_active: bool
     gap_research_tools_used: bool
+    gap_research_start_index: int | None
 
 
 def route_after_emergency_verification(
@@ -367,6 +368,7 @@ def _initial_graph_state(
         "max_research_rounds": MAX_RESEARCH_ROUNDS,
         "gap_research_active": False,
         "gap_research_tools_used": False,
+        "gap_research_start_index": None,
     }
 
 

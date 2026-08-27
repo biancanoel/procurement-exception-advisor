@@ -19,6 +19,7 @@ from graph.assessment_helpers import (
     append_html_list,
     create_model_node,
     route_model_response,
+    tool_evidence,
 )
 from graph.audit_readiness_subagent import (
     AuditReadinessNodeUpdate,
@@ -469,6 +470,19 @@ def test_model_node_uses_case_independent_tools_for_supplied_case() -> None:
     assert update["messages"][0].content == "supplied"
     assert regular_model.inputs == []
     assert len(supplied_case_model.inputs) == 1
+
+
+def test_model_node_applies_cooperative_contract_tool_boundary() -> None:
+    model = FakeBoundModel([AIMessage(content="done")])
+    call_model = create_model_node(model)
+
+    call_model({"messages": [HumanMessage(content="Research the gaps")]})
+
+    instruction = " ".join(str(model.inputs[0][0].content).split())
+    assert "search_procurement_rules searches only" in instruction
+    assert "No currently available tool can determine" in instruction
+    assert "cooperative or agency contract is available" in instruction
+    assert "Preserve cooperative-contract availability as unknown" in instruction
 
 
 def test_parent_starts_with_emergency_verification_subagent() -> None:
@@ -1125,10 +1139,39 @@ def test_prepare_gap_research_batches_all_current_stage_gaps() -> None:
     context = str(update["messages"][0].content)
 
     assert update["research_rounds"] == 1
+    assert update["gap_research_start_index"] == 0
     assert context.count('"criterion_id"') == 2
     assert "audit_readiness" in context
     assert "approval_authority" in context
     assert "price_reasonableness" in context
+
+
+def test_tool_evidence_uses_explicit_gap_research_boundary() -> None:
+    messages = [
+        ToolMessage(
+            content="old observation",
+            name="example_lookup",
+            tool_call_id="old-call",
+        ),
+        HumanMessage(
+            content=(
+                "This wording is intentionally unrelated to boundary "
+                "detection."
+            )
+        ),
+        ToolMessage(
+            content="new observation",
+            name="example_lookup",
+            tool_call_id="new-call",
+        ),
+    ]
+
+    evidence = tool_evidence(messages, start_index=1)
+
+    assert "new observation" in evidence
+    assert "new-call" in evidence
+    assert "old observation" not in evidence
+    assert "old-call" not in evidence
 
 
 def test_html_list_formatter_closes_lists_and_escapes_values() -> None:
