@@ -14,7 +14,6 @@ from graph.assessment_helpers import (
     append_html_list,
     case_from_state,
     create_chat_model,
-    format_evidence,
 )
 from graph.audit_readiness_subagent import (
     build_audit_readiness_subgraph,
@@ -33,7 +32,6 @@ from graph.procurement_context_subagent import (
 from graph.shared import (
     AUDIT_READINESS_STAGE,
     EMERGENCY_VERIFICATION_STAGE,
-    MAX_RESEARCH_ROUNDS,
 )
 from models.assessment import (
     AuditReadinessAssessment,
@@ -57,12 +55,6 @@ class ProcurementGraphState(MessagesState):
     audit_readiness: AuditReadinessAssessment | None
     assessment: EmergencyProcurementAssessment | None
     assessment_stage: str
-    unresolved_criteria: list[CriterionResult]
-    research_rounds: int
-    max_research_rounds: int
-    gap_research_active: bool
-    gap_research_tools_used: bool
-    gap_research_start_index: int | None
 
 
 def route_after_emergency_verification(
@@ -77,7 +69,7 @@ def route_after_emergency_verification(
 
 
 def _render_criterion_result(result: CriterionResult) -> list[str]:
-    """Render every structured field relevant to one criterion result."""
+    """Render the user-facing fields for one criterion result."""
 
     try:
         criterion_name = get_procurement_criterion(result.criterion_id).name
@@ -94,17 +86,6 @@ def _render_criterion_result(result: CriterionResult) -> list[str]:
         f"Rationale: {result.rationale}",
         f"Confidence: {result.confidence:.0%}",
     ]
-    append_html_list(
-        lines,
-        "Supporting evidence",
-        [format_evidence(item) for item in result.supporting_evidence],
-    )
-    append_html_list(
-        lines,
-        "Conflicting evidence",
-        [format_evidence(item) for item in result.conflicting_evidence],
-    )
-    append_html_list(lines, "Missing evidence", result.missing_evidence)
     append_html_list(lines, "Follow-up questions", result.follow_up_questions)
     lines.append(
         "Requires human review: "
@@ -306,16 +287,8 @@ def build_graph(
     run_procurement_context_subagent = (
         create_procurement_context_subagent_node(context_subgraph)
     )
-    # Removing get_case_facts from the audit readiness subagent tools since we alreaddt have case facts from gradio. Keeping get_case_facts so we can still use test cases
-    audit_model_with_tools = model.bind_tools(list(tools))
-    audit_model_for_supplied_case = model.bind_tools(
-        [tool for tool in tools if tool.name != "get_case_facts"]
-    )
     audit_subgraph = build_audit_readiness_subgraph(
         chat_model=model,
-        tools=tools,
-        model_with_tools=audit_model_with_tools,
-        model_for_supplied_case=audit_model_for_supplied_case,
     )
     run_audit_readiness_subagent = create_audit_readiness_subagent_node(
         audit_subgraph
@@ -364,11 +337,6 @@ def _initial_graph_state(
         "audit_readiness": None,
         "assessment": None,
         "assessment_stage": EMERGENCY_VERIFICATION_STAGE,
-        "research_rounds": 0,
-        "max_research_rounds": MAX_RESEARCH_ROUNDS,
-        "gap_research_active": False,
-        "gap_research_tools_used": False,
-        "gap_research_start_index": None,
     }
 
 

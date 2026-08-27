@@ -39,7 +39,7 @@ the assessment:
   contract is available for this purchase. Do not attempt to research that
   question with another tool or treat policy search results as contract-search
   results. Preserve cooperative-contract availability as unknown case evidence
-  and retain the corresponding missing evidence or follow-up question.
+  and retain the corresponding follow-up question.
 - search_government_awards provides federal award market intelligence only. It
   does not establish cooperative, piggyback, or agency-contract availability.
 """
@@ -121,18 +121,11 @@ def create_chat_model() -> ChatOpenAI:
 
 
 def route_model_response(state: Mapping[str, Any]) -> str:
-    """Route tool calls or continue the state's current assessment stage."""
+    """Route an initial tool call or continue to emergency verification."""
 
     latest = state["messages"][-1]
     if isinstance(latest, AIMessage) and latest.tool_calls:
         return "tools"
-    if state.get("gap_research_active"):
-        if not state.get("gap_research_tools_used"):
-            return "finalize"
-        return state.get(
-            "assessment_stage",
-            EMERGENCY_VERIFICATION_STAGE,
-        )
     return EMERGENCY_VERIFICATION_STAGE
 
 
@@ -175,24 +168,11 @@ def case_from_state(
 
 def tool_evidence(
     messages: Sequence[BaseMessage],
-    *,
-    start_index: int | None = None,
 ) -> str:
-    """Format completed non-case tool observations as assessment evidence.
-
-    ``start_index`` is an explicit graph-state boundary for targeted
-    reassessment. Initial assessment omits it and retains the historical
-    behavior of receiving all completed observations.
-    """
-
-    first_message_index = 0 if start_index is None else start_index
-    if not 0 <= first_message_index <= len(messages):
-        raise ValueError(
-            "tool evidence start_index is outside the message list"
-        )
+    """Format completed non-case tool observations as assessment evidence."""
 
     observations: list[str] = []
-    for message in messages[first_message_index:]:
+    for message in messages:
         if not isinstance(message, ToolMessage):
             continue
         if message.name == "get_case_facts":
@@ -378,11 +358,6 @@ def create_model_node(
         response = selected_model.invoke(messages)
         if not isinstance(response, AIMessage):
             raise RuntimeError("ChatOpenAI returned an unexpected response type")
-        update: dict[str, list[BaseMessage] | bool] = {
-            "messages": [response]
-        }
-        if state.get("gap_research_active") and response.tool_calls:
-            update["gap_research_tools_used"] = True
-        return update
+        return {"messages": [response]}
 
     return call_model

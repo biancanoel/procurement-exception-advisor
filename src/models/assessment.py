@@ -294,7 +294,7 @@ class AuditRisk(StrictModel):
 
 
 class AuditReadinessAssessment(StrictModel):
-    """Six-criterion review of an emergency procurement file's readiness."""
+    """Five-criterion review of an emergency procurement file's readiness."""
 
     schema_version: str = "1.0"
 
@@ -309,8 +309,8 @@ class AuditReadinessAssessment(StrictModel):
     classification: str = Field(min_length=1)
 
     criterion_results: list[CriterionResult] = Field(
-        min_length=6,
-        max_length=6,
+        min_length=5,
+        max_length=5,
     )
 
     audit_risks: list[AuditRisk] = Field(
@@ -358,32 +358,6 @@ class AuditReadinessAssessment(StrictModel):
                 "criterion_results contains duplicate criterion IDs."
             )
 
-        return results
-
-
-class AuditReadinessCriterionReassessment(StrictModel):
-    """Targeted updates for criteria that remained unresolved after research."""
-
-    case_id: str = Field(pattern=r"^EM-[0-9]{3}$")
-
-    criterion_results: list[CriterionResult] = Field(
-        min_length=1,
-        max_length=6,
-    )
-
-    @field_validator("criterion_results")
-    @classmethod
-    def criterion_ids_must_be_unique(
-        cls,
-        results: list[CriterionResult],
-    ) -> list[CriterionResult]:
-        """Reject duplicate targeted updates before they are merged."""
-
-        criterion_ids = [result.criterion_id for result in results]
-        if len(criterion_ids) != len(set(criterion_ids)):
-            raise ValueError(
-                "criterion_results contains duplicate criterion IDs."
-            )
         return results
 
 

@@ -28,7 +28,6 @@ EXPECTED_AUDIT_CRITERION_IDS = [
     "vendor_selection",
     "price_reasonableness",
     "approval_authority",
-    "remaining_compliance_requirements",
     "post_facto_formalization",
 ]
 
@@ -47,14 +46,14 @@ def test_returns_all_emergency_criteria_in_order() -> None:
 def test_returns_all_audit_readiness_criteria_in_order() -> None:
     criteria = get_audit_readiness_criteria()
 
-    assert len(criteria) == get_audit_readiness_criteria_count() == 6
+    assert len(criteria) == get_audit_readiness_criteria_count() == 5
     assert [
         criterion.criterion_id
         for criterion in criteria
     ] == EXPECTED_AUDIT_CRITERION_IDS
 
 
-def test_procurement_criteria_partition_covers_all_nine() -> None:
+def test_procurement_criteria_partition_covers_all_eight() -> None:
     emergency_ids = {
         criterion.criterion_id for criterion in get_emergency_criteria()
     }
@@ -66,7 +65,7 @@ def test_procurement_criteria_partition_covers_all_nine() -> None:
     ]
 
     assert emergency_ids.isdisjoint(audit_ids)
-    assert get_procurement_criteria_count() == 9
+    assert get_procurement_criteria_count() == 8
     assert all_ids == (
         EXPECTED_EMERGENCY_CRITERION_IDS + EXPECTED_AUDIT_CRITERION_IDS
     )

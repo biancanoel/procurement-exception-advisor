@@ -19,15 +19,11 @@ from graph.assessment_helpers import (
     append_html_list,
     create_model_node,
     route_model_response,
-    tool_evidence,
 )
 from graph.audit_readiness_subagent import (
     AuditReadinessNodeUpdate,
     audit_readiness,
     build_audit_readiness_subgraph,
-    merge_targeted_audit_results,
-    route_audit_readiness_gaps,
-    targeted_audit_readiness,
 )
 from graph.emergency_verification_subagent import (
     EmergencyVerificationNodeUpdate,
@@ -35,14 +31,10 @@ from graph.emergency_verification_subagent import (
     emergency_verification,
     emergency_verification_tools,
     route_emergency_verification_entry,
-    route_emergency_verification_gaps,
 )
 from graph.shared import (
     AUDIT_READINESS_STAGE,
     EMERGENCY_VERIFICATION_STAGE,
-    MAX_RESEARCH_ROUNDS,
-    check_evidence_gaps,
-    prepare_gap_research,
 )
 from graph.procurement_context_subagent import (
     PROCUREMENT_CONTEXT_STAGE,
@@ -60,7 +52,6 @@ from graph.workflow import (
 from models.assessment import (
     AuditRisk,
     AuditReadinessAssessment,
-    AuditReadinessCriterionReassessment,
     CriterionResult,
     EmergencyProcurementAssessment,
     EmergencyVerification,
@@ -130,7 +121,6 @@ class FakeChatModel:
         structured_responses: list[
             EmergencyVerification
             | AuditReadinessAssessment
-            | AuditReadinessCriterionReassessment
             | Exception
         ] | None = None,
     ) -> None:
@@ -407,10 +397,6 @@ def state_with_case(case_id: str = "EM-001") -> dict[str, Any]:
             ),
             AIMessage(content="Research complete."),
         ],
-        "research_rounds": 0,
-        "max_research_rounds": MAX_RESEARCH_ROUNDS,
-        "gap_research_active": False,
-        "gap_research_tools_used": False,
     }
 
 
@@ -435,19 +421,11 @@ def test_graph_executes_tool_and_loops_back_to_model() -> None:
     assert "Found emergency pumps" in str(observation.content)
 
 
-def test_router_selects_tools_and_current_assessment_stage() -> None:
+def test_router_selects_tools_or_emergency_verification() -> None:
     assert route_model_response({"messages": [tool_request()]}) == "tools"
     assert route_model_response(
         {"messages": [AIMessage(content="Done")]}
     ) == EMERGENCY_VERIFICATION_STAGE
-    assert route_model_response(
-        {
-            "messages": [AIMessage(content="Done")],
-            "gap_research_active": True,
-            "gap_research_tools_used": True,
-            "assessment_stage": AUDIT_READINESS_STAGE,
-        }
-    ) == AUDIT_READINESS_STAGE
 
 
 def test_model_node_uses_case_independent_tools_for_supplied_case() -> None:
@@ -525,9 +503,9 @@ def test_emergency_verification_is_a_compiled_subgraph() -> None:
         "model",
         "tools",
         EMERGENCY_VERIFICATION_STAGE,
-        "check_evidence_gaps",
-        "prepare_gap_research",
     } <= set(subgraph.nodes)
+    assert "check_evidence_gaps" not in subgraph.nodes
+    assert "prepare_gap_research" not in subgraph.nodes
 
 
 def test_supplied_case_enters_directly_at_emergency_verification() -> None:
@@ -689,36 +667,21 @@ def test_procurement_context_retry_does_not_use_criterion_statuses() -> None:
 def test_audit_readiness_is_a_compiled_subgraph() -> None:
     subgraph = build_audit_readiness_subgraph(
         chat_model=FakeChatModel([]),
-        tools=[example_lookup],
     ).get_graph()
 
-    assert {
+    assert set(subgraph.nodes) == {
+        "__start__",
         AUDIT_READINESS_STAGE,
-        "targeted_audit_readiness",
-        "check_evidence_gaps",
-        "prepare_gap_research",
-        "model",
-        "tools",
-    } <= set(subgraph.nodes)
+        "__end__",
+    }
+    assert "targeted_audit_readiness" not in subgraph.nodes
+    assert "check_evidence_gaps" not in subgraph.nodes
+    assert "prepare_gap_research" not in subgraph.nodes
+    assert "model" not in subgraph.nodes
+    assert "tools" not in subgraph.nodes
     assert "finalize_assessment" not in subgraph.nodes
 
 
-def test_gap_nodes_are_shared_by_both_assessment_stages() -> None:
-    assert check_evidence_gaps.__module__ == "graph.shared"
-    assert prepare_gap_research.__module__ == "graph.shared"
-    assert route_model_response.__module__ == "graph.assessment_helpers"
-    assert audit_subagent_module.check_evidence_gaps is check_evidence_gaps
-    assert emergency_subagent_module.check_evidence_gaps is check_evidence_gaps
-    assert audit_subagent_module.prepare_gap_research is prepare_gap_research
-    assert (
-        emergency_subagent_module.prepare_gap_research
-        is prepare_gap_research
-    )
-    assert audit_subagent_module.route_model_response is route_model_response
-    assert (
-        emergency_subagent_module.route_model_response
-        is route_model_response
-    )
 
 
 def test_run_graph_rejects_blank_question() -> None:
@@ -761,7 +724,7 @@ def test_emergency_verification_evaluates_only_three_criteria() -> None:
     assert "rules-call-001" in expected.source_ids_used
 
 
-def test_audit_readiness_evaluates_only_remaining_six_and_combines_results() -> None:
+def test_audit_readiness_evaluates_only_remaining_five_and_combines_results() -> None:
     expected = audit_assessment()
     model = FakeChatModel([], [expected])
     state = state_with_case()
@@ -773,12 +736,12 @@ def test_audit_readiness_evaluates_only_remaining_six_and_combines_results() -> 
     update = audit_readiness(state, chat_model=model)
 
     assert update["audit_readiness"] is expected
-    assert len(expected.criterion_results) == 6
+    assert len(expected.criterion_results) == 5
     assert isinstance(update["assessment"], EmergencyProcurementAssessment)
     assert update["assessment"].emergency_verification is verified
     assert update["assessment"].procurement_context is context
     assert update["assessment"].audit_readiness is expected
-    assert len(update["assessment"].criterion_results) == 9
+    assert len(update["assessment"].criterion_results) == 8
     assert [
         result.criterion_id for result in update["assessment"].criterion_results
     ] == [
@@ -793,84 +756,8 @@ def test_audit_readiness_evaluates_only_remaining_six_and_combines_results() -> 
     assert "Formal competitive solicitation" in prompt
 
 
-def test_targeted_audit_reassessment_only_receives_unresolved_criteria() -> None:
-    existing = audit_assessment(unresolved_id="approval_authority")
-    resolved_approval = criterion_result(
-        "approval_authority",
-        status=CriterionStatus.SUPPORTED,
-    )
-    model = FakeChatModel(
-        [],
-        [
-            AuditReadinessCriterionReassessment(
-                case_id="EM-001",
-                criterion_results=[resolved_approval],
-            )
-        ],
-    )
-    state = state_with_case()
-    state.update(
-        {
-            "case_input": load_case("EM-001"),
-            "emergency_verification": verification(True),
-            "procurement_context": procurement_context_result(),
-            "audit_readiness": existing,
-            "unresolved_criteria": [
-                next(
-                    result
-                    for result in existing.criterion_results
-                    if result.criterion_id == "approval_authority"
-                )
-            ],
-            "assessment_stage": AUDIT_READINESS_STAGE,
-        }
-    )
-
-    update = targeted_audit_readiness(state, chat_model=model)
-
-    prompt = model.structured_inputs[0][1][1]
-    assert model.structured_schemas == [AuditReadinessCriterionReassessment]
-    assert "approval_authority" in prompt
-    assert "appropriate_response_scope" not in prompt
-    assert "vendor_selection" not in prompt
-    assert update["audit_readiness"].criterion_results[3] is resolved_approval
 
 
-def test_targeted_audit_merge_preserves_resolved_results_and_recomputes() -> None:
-    existing = audit_assessment(unresolved_id="approval_authority")
-    preserved_results = {
-        result.criterion_id: result
-        for result in existing.criterion_results
-        if result.criterion_id != "approval_authority"
-    }
-    updated = criterion_result(
-        "approval_authority",
-        status=CriterionStatus.NOT_SUPPORTED,
-    )
-
-    merged = merge_targeted_audit_results(
-        existing,
-        [updated],
-        source_ids_used=["new-rule-source"],
-    )
-
-    merged_by_id = {
-        result.criterion_id: result
-        for result in merged.criterion_results
-    }
-    assert merged_by_id["approval_authority"] is updated
-    assert all(
-        merged_by_id[criterion_id] is result
-        for criterion_id, result in preserved_results.items()
-    )
-    assert (
-        merged.recommendation
-        == FinalRecommendation.NOT_SUFFICIENTLY_SUPPORTED
-    )
-    assert merged.overall_confidence == pytest.approx(
-        sum(result.confidence for result in merged.criterion_results) / 6
-    )
-    assert merged.source_ids_used == ["new-rule-source"]
 
 
 def test_audit_readiness_uses_specific_node_update_type() -> None:
@@ -952,10 +839,6 @@ def test_real_case_tool_artifact_reaches_emergency_verification() -> None:
     result = build_graph(chat_model=model, tools=[get_case_facts]).invoke(
         {
             "messages": [HumanMessage(content="Evaluate EM-005")],
-            "research_rounds": 0,
-            "max_research_rounds": 0,
-            "gap_research_active": False,
-            "gap_research_tools_used": False,
         }
     )
 
@@ -987,10 +870,6 @@ def test_parent_graph_evaluates_dynamic_case_input_without_case_tool() -> None:
         {
             "messages": [HumanMessage(content="Evaluate the supplied case")],
             "case_input": case,
-            "research_rounds": 0,
-            "max_research_rounds": 0,
-            "gap_research_active": False,
-            "gap_research_tools_used": False,
         }
     )
 
@@ -1000,12 +879,10 @@ def test_parent_graph_evaluates_dynamic_case_input_without_case_tool() -> None:
     assert [
         [tool.name for tool in tool_set]
         for tool_set in model.bound_tool_sets
-    ] == [
-        ["get_case_facts", "example_lookup"],
-        ["example_lookup"],
-        ["get_case_facts", "example_lookup"],
-        ["example_lookup"],
-    ]
+        ] == [
+            ["get_case_facts", "example_lookup"],
+            ["example_lookup"],
+        ]
     assert not any(
         isinstance(message, ToolMessage) and message.name == "get_case_facts"
         for message in result["messages"]
@@ -1040,35 +917,11 @@ def test_stream_graph_yields_parent_node_updates(
     assert updates[-1][1]["messages"] == [final]
 
 
-def test_check_evidence_gaps_inspects_only_current_stage() -> None:
-    verification_gap = verification(None).criterion_results[0]
-    audit_gap = criterion_result(
-        "approval_authority",
-        missing_evidence=["Applicable approval requirements"],
-    )
-    state = {
-        "messages": [],
-        "emergency_verification": verification(None),
-        "audit_readiness": audit_assessment(
-            unresolved_id="approval_authority"
-        ),
-        "assessment_stage": EMERGENCY_VERIFICATION_STAGE,
-    }
-
-    verification_update = check_evidence_gaps(state)
-    state["assessment_stage"] = AUDIT_READINESS_STAGE
-    audit_update = check_evidence_gaps(state)
-
-    assert verification_update["unresolved_criteria"] == [verification_gap]
-    assert audit_update["unresolved_criteria"][0].criterion_id == audit_gap.criterion_id
-    assert len(audit_update["unresolved_criteria"]) == 1
 
 
 def test_parent_routes_completed_emergency_verification() -> None:
     base = {
         "assessment_stage": EMERGENCY_VERIFICATION_STAGE,
-        "research_rounds": 0,
-        "max_research_rounds": MAX_RESEARCH_ROUNDS,
     }
 
     assert route_after_emergency_verification(
@@ -1082,96 +935,12 @@ def test_parent_routes_completed_emergency_verification() -> None:
     ) == "finalize"
 
 
-def test_subgraph_keeps_indeterminate_verification_inside_gap_loop() -> None:
-    unresolved = verification(None)
-    state = {
-        "assessment_stage": EMERGENCY_VERIFICATION_STAGE,
-        "emergency_verification": unresolved,
-        "unresolved_criteria": unresolved.criterion_results[:1],
-        "research_rounds": 0,
-        "max_research_rounds": MAX_RESEARCH_ROUNDS,
-    }
-
-    assert route_emergency_verification_gaps(state) == "research"
-    assert route_emergency_verification_gaps(
-        {
-            **state,
-            "research_rounds": MAX_RESEARCH_ROUNDS,
-        }
-    ) == "complete"
-    assert route_emergency_verification_gaps(
-        {**state, "emergency_verification": verification(False)}
-    ) == "complete"
 
 
-def test_audit_subgraph_router_handles_bounded_research() -> None:
-    assert route_audit_readiness_gaps(
-        {
-            "unresolved_criteria": [
-                criterion_result("approval_authority")
-            ],
-            "research_rounds": 0,
-            "max_research_rounds": MAX_RESEARCH_ROUNDS,
-        }
-    ) == "research"
 
 
-def test_prepare_gap_research_batches_all_current_stage_gaps() -> None:
-    unresolved = [
-        criterion_result(
-            "approval_authority",
-            missing_evidence=["Approval evidence"],
-        ),
-        criterion_result(
-            "price_reasonableness",
-            missing_evidence=["Vendor quote"],
-        ),
-    ]
-    state = {
-        "messages": [],
-        "assessment_stage": AUDIT_READINESS_STAGE,
-        "unresolved_criteria": unresolved,
-        "research_rounds": 0,
-        "max_research_rounds": MAX_RESEARCH_ROUNDS,
-    }
-
-    update = prepare_gap_research(state)
-    context = str(update["messages"][0].content)
-
-    assert update["research_rounds"] == 1
-    assert update["gap_research_start_index"] == 0
-    assert context.count('"criterion_id"') == 2
-    assert "audit_readiness" in context
-    assert "approval_authority" in context
-    assert "price_reasonableness" in context
 
 
-def test_tool_evidence_uses_explicit_gap_research_boundary() -> None:
-    messages = [
-        ToolMessage(
-            content="old observation",
-            name="example_lookup",
-            tool_call_id="old-call",
-        ),
-        HumanMessage(
-            content=(
-                "This wording is intentionally unrelated to boundary "
-                "detection."
-            )
-        ),
-        ToolMessage(
-            content="new observation",
-            name="example_lookup",
-            tool_call_id="new-call",
-        ),
-    ]
-
-    evidence = tool_evidence(messages, start_index=1)
-
-    assert "new observation" in evidence
-    assert "new-call" in evidence
-    assert "old observation" not in evidence
-    assert "old-call" not in evidence
 
 
 def test_html_list_formatter_closes_lists_and_escapes_values() -> None:
@@ -1219,13 +988,15 @@ def test_finalizer_renders_all_verification_results_and_case_context() -> None:
     assert "Status: supported" in content
     assert "competition_impracticable" in content
     assert "Status: partially_supported" in content
-    assert "<h4>Missing evidence</h4>" in content
+    assert "<h4>Missing evidence</h4>" not in content
+    assert "<h4>Supporting evidence</h4>" not in content
+    assert "<h4>Conflicting evidence</h4>" not in content
     assert "<h4>Follow-up questions</h4>" in content
     assert "<ul>" in content
     assert "</ul>" in content
-    assert "Documented review of available alternatives" in content
+    assert "Documented review of available alternatives" not in content
     assert "Were alternate providers contacted?" in content
-    assert "EM003-D02" in content
+    assert "EM003-D02" not in content
     assert "Sources used" not in content
     assert "call_uiyExxI0n50LIITkllkxv2na" not in content
 
@@ -1417,376 +1188,9 @@ def test_em003_poor_planning_runs_inside_subgraph_and_skips_audit() -> None:
     assert "missed procurement planning" in final_content
 
 
-def test_verification_gap_research_returns_to_verification(monkeypatch) -> None:
-    verifications = iter([verification(None), verification(True)])
-    verification_calls = 0
-    install_fake_procurement_context(monkeypatch)
-
-    def fake_verification(state: dict[str, Any], **_: Any) -> dict[str, Any]:
-        nonlocal verification_calls
-        verification_calls += 1
-        return {
-            "emergency_verification": next(verifications),
-            "assessment_stage": EMERGENCY_VERIFICATION_STAGE,
-        }
-
-    resolved_audit = audit_assessment()
-
-    def fake_audit(state: dict[str, Any], **_: Any) -> dict[str, Any]:
-        return {
-            "audit_readiness": resolved_audit,
-            "assessment": EmergencyProcurementAssessment(
-                case_id="EM-001",
-                emergency_verification=state["emergency_verification"],
-                procurement_context=state["procurement_context"],
-                audit_readiness=resolved_audit,
-            ),
-            "assessment_stage": AUDIT_READINESS_STAGE,
-        }
-
-    monkeypatch.setattr(
-        emergency_subagent_module,
-        "emergency_verification",
-        fake_verification,
-    )
-    monkeypatch.setattr(audit_subagent_module, "audit_readiness", fake_audit)
-    model = FakeChatModel(
-        [
-            AIMessage(content="Initial research complete."),
-            AIMessage(
-                content="",
-                tool_calls=[
-                    {
-                        "name": "example_lookup",
-                        "args": {"query": "foreseeability evidence"},
-                        "id": "verification-gap-1",
-                        "type": "tool_call",
-                    },
-                    {
-                        "name": "example_lookup",
-                        "args": {"query": "competition evidence"},
-                        "id": "verification-gap-2",
-                        "type": "tool_call",
-                    },
-                ],
-            ),
-            AIMessage(content="Gap research complete."),
-        ]
-    )
-
-    result = build_graph(chat_model=model, tools=[example_lookup]).invoke(
-        {"messages": [HumanMessage(content="Evaluate the case")]}
-    )
-
-    assert verification_calls == 2
-    assert result["research_rounds"] == 1
-    assert result["emergency_verification"].emergency_is_verified is True
-    assert result["audit_readiness"] is resolved_audit
-    assert [
-        message.tool_call_id
-        for message in result["messages"]
-        if isinstance(message, ToolMessage)
-    ] == ["verification-gap-1", "verification-gap-2"]
 
 
-def test_audit_gap_research_returns_to_audit(monkeypatch) -> None:
-    initial_audit = audit_assessment(unresolved_id="approval_authority")
-    audit_calls = 0
-    install_fake_procurement_context(monkeypatch)
-
-    def fake_verification(state: dict[str, Any], **_: Any) -> dict[str, Any]:
-        return {
-            "emergency_verification": verification(True),
-            "assessment_stage": EMERGENCY_VERIFICATION_STAGE,
-        }
-
-    def fake_audit(state: dict[str, Any], **_: Any) -> dict[str, Any]:
-        nonlocal audit_calls
-        audit_calls += 1
-        return {
-            "audit_readiness": initial_audit,
-            "assessment": EmergencyProcurementAssessment(
-                case_id="EM-001",
-                emergency_verification=state["emergency_verification"],
-                procurement_context=state["procurement_context"],
-                audit_readiness=initial_audit,
-            ),
-            "assessment_stage": AUDIT_READINESS_STAGE,
-        }
-
-    monkeypatch.setattr(
-        emergency_subagent_module,
-        "emergency_verification",
-        fake_verification,
-    )
-    monkeypatch.setattr(audit_subagent_module, "audit_readiness", fake_audit)
-    model = FakeChatModel(
-        [
-            AIMessage(
-                content="",
-                tool_calls=[
-                    {
-                        "name": "example_lookup",
-                        "args": {"query": "local authority"},
-                        "id": "gap-call-1",
-                        "type": "tool_call",
-                    },
-                    {
-                        "name": "example_lookup",
-                        "args": {"query": "state authority"},
-                        "id": "gap-call-2",
-                        "type": "tool_call",
-                    },
-                ],
-            ),
-            AIMessage(content="Gap research complete."),
-        ],
-        [
-            AuditReadinessCriterionReassessment(
-                case_id="EM-001",
-                criterion_results=[
-                    criterion_result(
-                        "approval_authority",
-                        status=CriterionStatus.SUPPORTED,
-                    )
-                ],
-            )
-        ],
-    )
-
-    result = build_graph(chat_model=model, tools=[example_lookup]).invoke(
-        {
-            "messages": [HumanMessage(content="Evaluate the case")],
-            "case_input": load_case("EM-001"),
-        }
-    )
-
-    assert audit_calls == 1
-    assert all(
-        result.status == CriterionStatus.SUPPORTED
-        for result in result["audit_readiness"].criterion_results
-    )
-    assert (
-        result["audit_readiness"].recommendation
-        == FinalRecommendation.SUFFICIENTLY_SUPPORTED
-    )
-    assert [
-        message.tool_call_id
-        for message in result["messages"]
-        if isinstance(message, ToolMessage)
-    ] == ["gap-call-1", "gap-call-2"]
 
 
-def test_audit_subgraph_preserves_unresolvable_agency_evidence(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    unresolved_audit = audit_assessment(
-        unresolved_id="post_facto_formalization"
-    )
-
-    def fake_audit(state: dict[str, Any], **_: Any) -> dict[str, Any]:
-        return {
-            "audit_readiness": unresolved_audit,
-            "assessment": EmergencyProcurementAssessment(
-                case_id="EM-001",
-                emergency_verification=state["emergency_verification"],
-                audit_readiness=unresolved_audit,
-            ),
-            "assessment_stage": AUDIT_READINESS_STAGE,
-        }
-
-    monkeypatch.setattr(audit_subagent_module, "audit_readiness", fake_audit)
-    no_tool_response = AIMessage(
-        content="The signed file must be supplied by the agency."
-    )
-    model = FakeChatModel([no_tool_response])
-    initial_state = state_with_case()
-    initial_state.update(
-        {
-            "emergency_verification": verification(True),
-            "audit_readiness": None,
-            "assessment": None,
-            "assessment_stage": AUDIT_READINESS_STAGE,
-            "unresolved_criteria": [],
-        }
-    )
-
-    result = build_audit_readiness_subgraph(
-        chat_model=model,
-        tools=[example_lookup],
-    ).invoke(initial_state)
-
-    assert result["audit_readiness"] is unresolved_audit
-    assert result["research_rounds"] == 1
-    assert [
-        item.criterion_id for item in result["unresolved_criteria"]
-    ] == ["post_facto_formalization"]
-    assert result["messages"][-1] is no_tool_response
-    assert not any(
-        isinstance(message, ToolMessage)
-        and message.name == "example_lookup"
-        for message in result["messages"]
-    )
 
 
-def test_audit_subgraph_research_stops_after_three_rounds(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    unresolved_audit = audit_assessment(unresolved_id="approval_authority")
-    audit_calls = 0
-    targeted_calls = 0
-
-    def fake_audit(state: dict[str, Any], **_: Any) -> dict[str, Any]:
-        nonlocal audit_calls
-        audit_calls += 1
-        return {
-            "audit_readiness": unresolved_audit,
-            "assessment": EmergencyProcurementAssessment(
-                case_id="EM-001",
-                emergency_verification=state["emergency_verification"],
-                audit_readiness=unresolved_audit,
-            ),
-            "assessment_stage": AUDIT_READINESS_STAGE,
-        }
-
-    monkeypatch.setattr(audit_subagent_module, "audit_readiness", fake_audit)
-
-    def fake_targeted(state: dict[str, Any], **_: Any) -> dict[str, Any]:
-        nonlocal targeted_calls
-        targeted_calls += 1
-        return {
-            "audit_readiness": unresolved_audit,
-            "assessment": EmergencyProcurementAssessment(
-                case_id="EM-001",
-                emergency_verification=state["emergency_verification"],
-                audit_readiness=unresolved_audit,
-            ),
-            "assessment_stage": AUDIT_READINESS_STAGE,
-        }
-
-    monkeypatch.setattr(
-        audit_subagent_module,
-        "targeted_audit_readiness",
-        fake_targeted,
-    )
-    responses: list[AIMessage] = []
-    for round_number in range(1, MAX_RESEARCH_ROUNDS + 1):
-        responses.extend(
-            [
-                tool_request(
-                    call_id=f"audit-round-{round_number}",
-                    query=f"audit round {round_number}",
-                ),
-                AIMessage(
-                    content=f"Audit research round {round_number} complete."
-                ),
-            ]
-        )
-    model = FakeChatModel(responses)
-    initial_state = state_with_case()
-    initial_state.update(
-        {
-            "emergency_verification": verification(True),
-            "audit_readiness": None,
-            "assessment": None,
-            "assessment_stage": AUDIT_READINESS_STAGE,
-            "unresolved_criteria": [],
-        }
-    )
-
-    result = build_audit_readiness_subgraph(
-        chat_model=model,
-        tools=[example_lookup],
-    ).invoke(initial_state)
-
-    assert result["research_rounds"] == MAX_RESEARCH_ROUNDS == 3
-    assert audit_calls == 1
-    assert targeted_calls == 3
-    assert [
-        item.criterion_id for item in result["unresolved_criteria"]
-    ] == ["approval_authority"]
-    assert sum(
-        isinstance(message, ToolMessage)
-        and message.name == "example_lookup"
-        for message in result["messages"]
-    ) == 3
-
-
-def test_model_can_decline_gap_research_and_preserve_unresolved(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    unresolved_verification = verification(None)
-
-    def fake_verification(state: dict[str, Any], **_: Any) -> dict[str, Any]:
-        return {
-            "emergency_verification": unresolved_verification,
-            "assessment_stage": EMERGENCY_VERIFICATION_STAGE,
-        }
-
-    monkeypatch.setattr(
-        emergency_subagent_module,
-        "emergency_verification",
-        fake_verification,
-    )
-    no_tool_response = AIMessage(
-        content="The remaining evidence must be provided by the agency."
-    )
-    model = FakeChatModel(
-        [AIMessage(content="Initial research complete."), no_tool_response]
-    )
-
-    result = build_graph(chat_model=model, tools=[example_lookup]).invoke(
-        {"messages": [HumanMessage(content="Evaluate the case")]}
-    )
-
-    assert result["messages"][-2] is no_tool_response
-    final_content = str(result["messages"][-1].content)
-    assert "insufficient to determine" in final_content
-    assert "Additional emergency evidence" in final_content
-    assert len(result["unresolved_criteria"]) == 1
-    assert result["research_rounds"] == 1
-    assert not any(
-        isinstance(message, ToolMessage) for message in result["messages"]
-    )
-
-
-def test_gap_research_stops_after_three_rounds(monkeypatch) -> None:
-    unresolved_verification = verification(None)
-    verification_calls = 0
-
-    def fake_verification(state: dict[str, Any], **_: Any) -> dict[str, Any]:
-        nonlocal verification_calls
-        verification_calls += 1
-        return {
-            "emergency_verification": unresolved_verification,
-            "assessment_stage": EMERGENCY_VERIFICATION_STAGE,
-        }
-
-    monkeypatch.setattr(
-        emergency_subagent_module,
-        "emergency_verification",
-        fake_verification,
-    )
-    responses: list[AIMessage] = [AIMessage(content="Initial research complete.")]
-    for round_number in range(1, MAX_RESEARCH_ROUNDS + 1):
-        responses.extend(
-            [
-                tool_request(
-                    call_id=f"round-{round_number}",
-                    query=f"round {round_number}",
-                ),
-                AIMessage(content=f"Research round {round_number} complete."),
-            ]
-        )
-    model = FakeChatModel(responses)
-
-    result = build_graph(chat_model=model, tools=[example_lookup]).invoke(
-        {"messages": [HumanMessage(content="Evaluate the case")]}
-    )
-
-    assert result["research_rounds"] == MAX_RESEARCH_ROUNDS == 3
-    assert verification_calls == 4
-    assert len(result["unresolved_criteria"]) == 1
-    assert sum(
-        isinstance(message, ToolMessage) for message in result["messages"]
-    ) == 3

@@ -26,7 +26,6 @@ AUDIT_IDS = (
     "vendor_selection",
     "price_reasonableness",
     "approval_authority",
-    "remaining_compliance_requirements",
     "post_facto_formalization",
 )
 
@@ -310,7 +309,7 @@ def test_affirmative_adverse_evidence_can_support_negative_finding() -> None:
     assert result.missing_evidence == ["Written procurement file determination"]
 
 
-def test_audit_readiness_assessment_accepts_six_results() -> None:
+def test_audit_readiness_assessment_accepts_five_results() -> None:
     assessment = AuditReadinessAssessment(
         case_id="EM-001",
         recommendation=(
@@ -333,7 +332,7 @@ def test_audit_readiness_assessment_accepts_six_results() -> None:
     )
 
     assert assessment.case_id == "EM-001"
-    assert len(assessment.criterion_results) == 6
+    assert len(assessment.criterion_results) == 5
 
 
 def test_audit_readiness_rejects_duplicate_criterion_ids() -> None:
@@ -365,7 +364,7 @@ def test_audit_readiness_rejects_duplicate_criterion_ids() -> None:
                         rationale="Supported.",
                         confidence=0.9,
                     )
-                    for criterion_id in AUDIT_IDS[:4]
+                    for criterion_id in AUDIT_IDS[:3]
                 ],
             ],
             overall_confidence=0.9,
@@ -410,7 +409,7 @@ def test_complete_assessment_nests_all_structured_stage_results() -> None:
     assert assessment.emergency_verification is verification
     assert assessment.procurement_context is not None
     assert assessment.audit_readiness is audit
-    assert len(assessment.criterion_results) == 9
+    assert len(assessment.criterion_results) == 8
 
 
 def test_complete_assessment_rejects_audit_stage_without_verified_emergency() -> None:

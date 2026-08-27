@@ -25,9 +25,6 @@ from graph.assessment_helpers import (
 )
 from graph.shared import (
     EMERGENCY_VERIFICATION_STAGE,
-    MAX_RESEARCH_ROUNDS,
-    check_evidence_gaps,
-    prepare_gap_research,
 )
 from models.assessment import (
     CriterionResult,
@@ -71,12 +68,6 @@ class EmergencyVerificationSubgraphState(MessagesState):
     audit_readiness: None
     assessment: EmergencyProcurementAssessment | None
     assessment_stage: str
-    unresolved_criteria: list[CriterionResult]
-    research_rounds: int
-    max_research_rounds: int
-    gap_research_active: bool
-    gap_research_tools_used: bool
-    gap_research_start_index: int | None
 
 
 class EmergencyVerificationNodeUpdate(TypedDict):
@@ -98,12 +89,6 @@ class EmergencyVerificationSubagentUpdate(TypedDict):
     audit_readiness: None
     assessment: EmergencyProcurementAssessment | None
     assessment_stage: str
-    unresolved_criteria: list[CriterionResult]
-    research_rounds: int
-    max_research_rounds: int
-    gap_research_active: bool
-    gap_research_tools_used: bool
-    gap_research_start_index: int | None
 
 
 def emergency_verification(
@@ -167,23 +152,6 @@ def emergency_verification(
     }
 
 
-def route_emergency_verification_gaps(
-    state: EmergencyVerificationSubgraphState,
-) -> str:
-    """Research unresolved gaps in emergency verificationwhile bounded rounds remain."""
-
-    verification = state.get("emergency_verification")
-    if (
-        verification is not None
-        and verification.emergency_is_verified is None
-        and state.get("unresolved_criteria")
-        and state.get("research_rounds", 0)
-        < state.get("max_research_rounds", MAX_RESEARCH_ROUNDS)
-    ):
-        return "research"
-    return "complete"
-
-
 def route_emergency_verification_entry(
     state: EmergencyVerificationSubgraphState,
 ) -> str:
@@ -213,7 +181,7 @@ def build_emergency_verification_subgraph(
     model_with_tools: Any | None = None,
     model_for_supplied_case: Any | None = None,
 ) -> Any:
-    """Build the bounded model/tool/research loop for emergency verification."""
+    """Build one case-loading/tool cycle followed by one verification pass."""
 
     model = chat_model or create_chat_model()
     stage_tools = emergency_verification_tools(tools)
@@ -238,8 +206,6 @@ def build_emergency_verification_subgraph(
     )
     builder.add_node("tools", ToolNode(stage_tools))
     builder.add_node(EMERGENCY_VERIFICATION_STAGE, verify_emergency)
-    builder.add_node("check_evidence_gaps", check_evidence_gaps)
-    builder.add_node("prepare_gap_research", prepare_gap_research)
     builder.add_conditional_edges(
         START,
         route_emergency_verification_entry,
@@ -254,21 +220,10 @@ def build_emergency_verification_subgraph(
         {
             "tools": "tools",
             EMERGENCY_VERIFICATION_STAGE: EMERGENCY_VERIFICATION_STAGE,
-            # END does not terminate the subgraph, it returns control and state back to the parent graph
-            "finalize": END,
         },
     )
     builder.add_edge("tools", "model")
-    builder.add_edge(EMERGENCY_VERIFICATION_STAGE, "check_evidence_gaps")
-    builder.add_conditional_edges(
-        "check_evidence_gaps",
-        route_emergency_verification_gaps,
-        {
-            "research": "prepare_gap_research",
-            "complete": END,
-        },
-    )
-    builder.add_edge("prepare_gap_research", "model")
+    builder.add_edge(EMERGENCY_VERIFICATION_STAGE, END)
     return builder.compile()
 
 
@@ -289,15 +244,6 @@ def create_emergency_verification_subagent_node(
                 "audit_readiness": None,
                 "assessment": None,
                 "assessment_stage": EMERGENCY_VERIFICATION_STAGE,
-                "unresolved_criteria": [],
-                "research_rounds": state.get("research_rounds", 0),
-                "max_research_rounds": state.get(
-                    "max_research_rounds",
-                    MAX_RESEARCH_ROUNDS,
-                ),
-                "gap_research_active": False,
-                "gap_research_tools_used": False,
-                "gap_research_start_index": None,
             }
         )
         child_messages = list(result["messages"])
@@ -308,15 +254,6 @@ def create_emergency_verification_subagent_node(
             "audit_readiness": None,
             "assessment": result.get("assessment"),
             "assessment_stage": EMERGENCY_VERIFICATION_STAGE,
-            "unresolved_criteria": result.get("unresolved_criteria", []),
-            "research_rounds": result.get("research_rounds", 0),
-            "max_research_rounds": result.get(
-                "max_research_rounds",
-                MAX_RESEARCH_ROUNDS,
-            ),
-            "gap_research_active": False,
-            "gap_research_tools_used": False,
-            "gap_research_start_index": None,
         }
 
     return run_emergency_verification_subagent

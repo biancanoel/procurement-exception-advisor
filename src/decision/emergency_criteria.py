@@ -23,7 +23,6 @@ PROCUREMENT_CRITERIA: tuple[EmergencyCriterion, ...] = (
             "Incident timeline",
             "Incident report or operational record",
             "Explanation of when the need became known",
-            "Records showing whether the need was foreseeable",
         ],
         preferred_evidence_types=[
             EvidenceType.INCIDENT_REPORT,
@@ -53,14 +52,10 @@ PROCUREMENT_CRITERIA: tuple[EmergencyCriterion, ...] = (
             "Is there an imminent threat to public health, safety, or welfare?",
             "Will delay cause serious or secondary damage to public property?",
             "Will delay materially interrupt an essential public-facing service?",
-            "How soon will the threatened harm occur?",
-            "Can temporary controls prevent or reduce the harm?",
-            "Is the claimed harm supported by technical or operational evidence?",
         ],
         expected_evidence=[
             "Description of the threatened harm",
             "Timeframe in which harm may occur",
-            "Technical or operational assessment",
             "Evidence of temporary controls or why they are inadequate",
         ],
         preferred_evidence_types=[
@@ -84,17 +79,14 @@ PROCUREMENT_CRITERIA: tuple[EmergencyCriterion, ...] = (
         name="Competition is impracticable",
         description=(
             "Determine whether normal or abbreviated competition cannot "
-            "be completed without causing unacceptable delay or harm."
-        ),
+            "be completed without causing unacceptable delay or harm. Assume that normal competition would like at least 1 month to complete."
+""        ),
         questions_to_answer=[
             "Why would normal competition create an unacceptable delay?",
             "Could informal quotes or an abbreviated competitive process be used?",
             "Were alternative vendors contacted?",
             "What were the availability and response times of other vendors?",
             "Is there an existing contract or cooperative contract that could meet the need?",
-            "Did the buyer search for an existing agency contract?",
-            "Did the buyer search cooperative contracts such as Sourcewell or OMNIA Partners?",
-            "Could an existing competitively awarded contract meet the need quickly?",
         ],
         expected_evidence=[
             "Explanation of why competition is impracticable",
@@ -133,9 +125,6 @@ PROCUREMENT_CRITERIA: tuple[EmergencyCriterion, ...] = (
         ),
         questions_to_answer=[
             "How does the proposed purchase address the emergency?",
-            "Is the proposed solution technically appropriate?",
-            "Which parts of the proposed scope are required immediately?",
-            "Are there less costly or less extensive alternatives?",
             "Does the request include upgrades, future phases, or unrelated work?",
             "Could non-emergency work be separated and competitively procured?",
             "Is the requested contract term limited to the emergency period?",
@@ -147,7 +136,6 @@ PROCUREMENT_CRITERIA: tuple[EmergencyCriterion, ...] = (
             "Itemized pricing",
             "Emergency stabilization plan",
             "Alternative solutions considered",
-            "Explanation of proposed duration or quantity",
         ],
         preferred_evidence_types=[
             EvidenceType.QUOTE,
@@ -279,45 +267,6 @@ PROCUREMENT_CRITERIA: tuple[EmergencyCriterion, ...] = (
         ],
     ),
     EmergencyCriterion(
-        criterion_id="remaining_compliance_requirements",
-        name="Remaining legal and contractual requirements",
-        description=(
-            "Determine which requirements continue to apply despite the "
-            "emergency exception, such as licensing, insurance, bonding, "
-            "prevailing wage, environmental, grant, or contracting requirements."
-        ),
-        questions_to_answer=[
-            "Which requirements are waived or modified by the emergency authority?",
-            "Which requirements still apply?",
-            "Does the vendor have required licenses, registrations, insurance, or bonds?",
-            "Does prevailing wage or another public-works requirement apply?",
-            "Does the funding source impose additional conditions?",
-        ],
-        expected_evidence=[
-            "Applicable policy or statute",
-            "Vendor licensing and registration records",
-            "Insurance and bond records",
-            "Funding-source requirements",
-            "Required contract clauses",
-        ],
-        preferred_evidence_types=[
-            EvidenceType.POLICY,
-            EvidenceType.STATUTE,
-            EvidenceType.LICENSE_OR_REGISTRATION,
-            EvidenceType.INSURANCE_DOCUMENT,
-            EvidenceType.CONTRACT,
-        ],
-        risk_if_missing=(
-            "The agent may incorrectly treat emergency authority as a "
-            "blanket waiver of unrelated legal requirements."
-        ),
-        human_review_triggers=[
-            "Federal or grant funding is involved.",
-            "Public works or prevailing wage requirements may apply.",
-            "The vendor lacks a required license, registration, insurance, or bond.",
-        ],
-    ),
-    EmergencyCriterion(
         criterion_id="post_facto_formalization",
         name="Post-event formalization",
         description=(
@@ -373,7 +322,6 @@ AUDIT_READINESS_CRITERION_IDS = (
     "vendor_selection",
     "price_reasonableness",
     "approval_authority",
-    "remaining_compliance_requirements",
     "post_facto_formalization",
 )
 
@@ -400,7 +348,7 @@ def get_emergency_criteria() -> tuple[EmergencyCriterion, ...]:
 
 
 def get_audit_readiness_criteria() -> tuple[EmergencyCriterion, ...]:
-    """Return the six criteria used to evaluate audit readiness."""
+    """Return the five criteria used to evaluate audit readiness."""
 
     return AUDIT_READINESS_CRITERIA
 
