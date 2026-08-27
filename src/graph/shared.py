@@ -32,7 +32,7 @@ def _is_unresolved(result: CriterionResult) -> bool:
 
 def check_evidence_gaps(
     state: Mapping[str, Any],
-) -> dict[str, list[CriterionResult] | bool | int]:
+) -> dict[str, list[CriterionResult] | bool | int | None]:
     """Collect unresolved results only from the current assessment stage."""
 
     stage = state.get("assessment_stage", EMERGENCY_VERIFICATION_STAGE)
@@ -55,6 +55,7 @@ def check_evidence_gaps(
         ),
         "gap_research_active": False,
         "gap_research_tools_used": False,
+        "gap_research_start_index": None,
     }
 
 
@@ -86,4 +87,8 @@ def prepare_gap_research(
         "research_rounds": next_round,
         "gap_research_active": True,
         "gap_research_tools_used": False,
+        # Record the message boundary explicitly before appending the research
+        # request. Later reassessment can select observations from this round
+        # without depending on the request's natural-language wording.
+        "gap_research_start_index": len(state["messages"]),
     }

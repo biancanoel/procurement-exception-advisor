@@ -361,6 +361,32 @@ class AuditReadinessAssessment(StrictModel):
         return results
 
 
+class AuditReadinessCriterionReassessment(StrictModel):
+    """Targeted updates for criteria that remained unresolved after research."""
+
+    case_id: str = Field(pattern=r"^EM-[0-9]{3}$")
+
+    criterion_results: list[CriterionResult] = Field(
+        min_length=1,
+        max_length=6,
+    )
+
+    @field_validator("criterion_results")
+    @classmethod
+    def criterion_ids_must_be_unique(
+        cls,
+        results: list[CriterionResult],
+    ) -> list[CriterionResult]:
+        """Reject duplicate targeted updates before they are merged."""
+
+        criterion_ids = [result.criterion_id for result in results]
+        if len(criterion_ids) != len(set(criterion_ids)):
+            raise ValueError(
+                "criterion_results contains duplicate criterion IDs."
+            )
+        return results
+
+
 class EmergencyProcurementAssessment(StrictModel):
     """Complete result containing verification, context, and audit stages."""
 

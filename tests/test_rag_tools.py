@@ -109,6 +109,15 @@ def test_search_procurement_rules_uses_default_top_k(monkeypatch) -> None:
     assert captured == {"query": "emergency rules", "top_k": 4}
 
 
+def test_search_procurement_rules_description_excludes_contract_catalogs() -> None:
+    description = " ".join(search_procurement_rules.description.split())
+
+    assert "procurement-law and policy corpus" in description
+    assert "does not search cooperative-contract catalogs" in description
+    assert "Sourcewell" in description
+    assert "OMNIA Partners" in description
+
+
 def make_case() -> EmergencyCaseInput:
     return EmergencyCaseInput.model_validate(
         {
